@@ -231,7 +231,8 @@ describe('Home: returning from login with create=1', () => {
     })
 
     await waitFor(() => expect(toastSpy).toHaveBeenCalledWith('Create room failed: server down'))
-    expect(currentLocation()).toBe('/Home')
+    // React Router 7 applies a navigation in a transition, so the URL can change after the toast.
+    await waitFor(() => expect(currentLocation()).toBe('/Home'))
   })
 
   it('a negative max_score in the URL creates with 200 (X7)', async () => {

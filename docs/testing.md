@@ -206,9 +206,11 @@ code changes on every run.
   `src/` is newer than `dist/`; delete `dist/` if in doubt.
 - **iphone-14 (WebKit) e2e is unreliable on Windows** and is non-blocking in CI. 4–5 tests fail
   even with one worker, and WebKit there also pauses animation frames under load, which breaks
-  Playwright's stability checks. The investigation is deferred as package W5.7. Its handoff and
-  work-in-progress are on branch `test/W5.7` (`docs/test-runs/W5.7.md`). Specs click through a
+  Playwright's stability checks. The cause hasn't been investigated yet. Specs click through a
   `tap()` helper that forces the click on WebKit.
+- **Assert a URL change inside `waitFor`.** React Router 7 applies a navigation in a transition, so
+  the location can update after the effect that follows it (a toast, a fetch). A bare `expect` on the
+  location passes alone and fails under coverage load.
 - **Phone testing on the dev server (`npm run share`) differs from production.** Leaving the
   browser drops Vite's HMR socket. The page stays (X26), but hot updates stop until a manual
   refresh. To check a real reload, restart Vite while a page is open.
