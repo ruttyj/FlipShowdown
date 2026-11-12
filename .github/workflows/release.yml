@@ -81,22 +81,28 @@ jobs:
         run: npm test
         working-directory: desktop
       # Builds the client and the launcher page, stages the server, fetches and verifies
-      # cloudflared, builds the installer and uploads it to the draft release for this tag.
-      - name: Package and upload
-        run: npm run dist -- --publish always
+      # cloudflared and builds the installer into desktop/out. electron-builder doesn't upload: it
+      # skips every file, with the job still green, when the release is no longer a draft (v1.0.0
+      # lost its macOS files that way), so the next step uploads instead.
+      - name: Package
+        run: npm run dist -- --publish never
         working-directory: desktop
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      # The versioned installer above keeps decision 20's name. This copy has a fixed name, so the
-      # README's https://github.com/<repo>/releases/latest/download/<name> links always fetch the
-      # newest published release.
-      - name: Upload a copy with a fixed name
+      # Uploads the versioned installer (decision 20's name), its blockmap and latest*.yml, plus a
+      # copy with a fixed name, so the README's
+      # https://github.com/<repo>/releases/latest/download/<name> links always fetch the newest
+      # published release. Fails instead of uploading if the release is no longer a draft.
+      - name: Upload to the draft release
         shell: bash
         working-directory: desktop/out
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
+          is_draft="$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft)"
+          if [ "$is_draft" != "true" ]; then
+            echo "::error::Release $GITHUB_REF_NAME is no longer a draft; make it a draft again and re-run this job"
+            exit 1
+          fi
           case "$RUNNER_OS" in
             Windows) pattern='Flip-Showdown-Setup-*.exe'; fixed='Flip-Showdown-Setup-Windows.exe' ;;
             macOS) pattern='Flip-Showdown-Setup-*.dmg'; fixed='Flip-Showdown-macOS.dmg' ;;
@@ -109,4 +115,27 @@ jobs:
             exit 1
           fi
           cp "${matches[0]}" "$fixed"
-          gh release upload "$GITHUB_REF_NAME" "$fixed" --clobber
+          # The AppImage embeds its blockmap, so Linux has no .blockmap file.
+          extras=(*.blockmap latest*.yml)
+          gh release upload "$GITHUB_REF_NAME" "${matches[0]}" "$fixed" "${extras[@]}" --clobber
+
+  check-draft:
+    name: Check the release is still a draft
+    needs: package
+    runs-on: ubuntu-latest
+    # Only reads, but GitHub shows draft releases only to tokens that can write.
+    permissions:
+      contents: write
+    steps:
+      # Something published v1.0.0 partway through its run; this makes a repeat fail the run
+      # instead of going unnoticed.
+      - name: Check the release is still a draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          is_draft="$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft)"
+          if [ "$is_draft" != "true" ]; then
+            echo "::error::Release $GITHUB_REF_NAME was published before review; make it a draft again"
+            exit 1
+          fi

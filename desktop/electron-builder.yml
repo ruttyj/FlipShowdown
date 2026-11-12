@@ -89,8 +89,8 @@ linux:
     - from: resources/cloudflared/linux-x64
       to: cloudflared/linux-x64
 
-# Used only with `--publish always` (the release workflow): uploads to a draft release for the
-# pushed tag, which a person reviews and publishes.
+# electron-builder never uploads (the release workflow passes `--publish never` and uploads out/
+# itself). This block still makes it write latest*.yml and the app's app-update.yml.
 publish:
   provider: github
   owner: ruttyj

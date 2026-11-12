@@ -7,7 +7,7 @@
 //
 // Examples (from desktop/):
 //   npm run dist -- --dir --win --x64      unpacked Windows build in out/win-unpacked, no installer
-//   npm run dist -- --publish always       what the release workflow runs (needs GH_TOKEN)
+//   npm run dist -- --publish never        what the release workflow runs; it uploads out/ itself
 //
 // Run it through npm (`npm run dist`): the root builds use the npm that started it.
 import { execFileSync } from 'node:child_process';
