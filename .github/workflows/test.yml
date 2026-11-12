@@ -119,7 +119,7 @@ jobs:
       - name: Run Playwright (chromium-desktop, pixel-7)
         if: ${{ env.ALL_PROJECTS == 'true' }}
         run: npm run test:e2e -- --project=chromium-desktop --project=pixel-7 --reporter=line,html
-      # iphone-14 (WebKit) is flaky and doesn't block yet: see docs/test-runs/W5.7.md on branch test/W5.7.
+      # iphone-14 (WebKit) is flaky and doesn't block yet: see "iphone-14" in docs/testing.md.
       - name: Run Playwright (iphone-14, non-blocking)
         if: ${{ env.ALL_PROJECTS == 'true' }}
         continue-on-error: true
