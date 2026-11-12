@@ -1,0 +1,80 @@
+name: flip-showdown
+
+services:
+  app:
+    build: .
+    image: flip-showdown:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # true = non-admins can't bypass the game actions through /api/entities.
+      LOCK_GAME_ENTITIES: ${LOCK_GAME_ENTITIES:-true}
+    ports:
+      # Bound to localhost only: phones reach the app through the Cloudflare tunnel, and in
+      # cloudflare auth mode a LAN request without an Access JWT would be rejected anyway.
+      - "127.0.0.1:${HOST_PORT:-7007}:3000"
+    volumes:
+      - app-data:/data
+
+  # Development server for `npm run share`: runs straight from the source folder, so code
+  # edits hot-reload on every connected phone. Uses the same host port as `app`; the npm
+  # scripts stop one before starting the other.
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    image: flip-showdown-dev:latest
+    profiles: ["share"]
+    env_file: .env
+    environment:
+      AUTH_MODE: dev
+      LOCK_GAME_ENTITIES: ${LOCK_GAME_ENTITIES:-true}
+      # Vite's proxy (vite.config.js) expects the API on its default port.
+      PORT: "7001"
+      DATA_DIR: /data
+      VITE_USE_POLLING: "true"
+    ports:
+      - "127.0.0.1:${HOST_PORT:-7007}:5173"
+    volumes:
+      - .:/workspace
+      # Linux builds of the dependencies, kept apart from the host's node_modules.
+      - dev-node-modules:/workspace/node_modules
+      - dev-server-node-modules:/workspace/server/node_modules
+      - dev-data:/data
+    healthcheck:
+      # Goes through Vite's proxy, so it's healthy only when both Vite and the API are up.
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5173/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+      # The first start installs dependencies into the volumes.
+      start_period: 5m
+
+  # Throwaway public URL (https://<random>.trycloudflare.com), no Cloudflare account needed.
+  # Managed by `npm run share`; a new URL is issued every time it starts.
+  quicktunnel:
+    image: cloudflare/cloudflared:latest
+    profiles: ["share"]
+    command: tunnel --no-autoupdate --url http://dev:5173
+    depends_on:
+      dev:
+        condition: service_healthy
+
+  # Permanent named tunnel (your own domain), started with `docker compose --profile tunnel up -d`
+  # once TUNNEL_TOKEN is set.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    profiles: ["tunnel"]
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}
+    depends_on:
+      app:
+        condition: service_healthy
+
+volumes:
+  app-data:
+  dev-data:
+  dev-node-modules:
+  dev-server-node-modules:

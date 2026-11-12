@@ -1,0 +1,138 @@
+# Runs every automated layer: static checks, the secret scan, the unit and
+# UI suites, coverage against the area targets, and the Playwright end-to-end suite.
+# Pull requests run the browser suite on chromium-desktop only; pushes to main run every
+# project (chromium-desktop, pixel-7, iphone-14).
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static-checks:
+    name: Lint, typecheck and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+            desktop/package-lock.json
+      - run: npm ci
+      # The desktop typecheck needs electron's types, not its binary.
+      - run: npm ci
+        working-directory: desktop
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run build
+
+  secret-scan:
+    name: Secret scan (Betterleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # The scan covers every commit, so it needs the whole history.
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+      # The script only uses Node built-ins, so no npm ci.
+      - run: npm run scan:secrets
+
+  unit-and-coverage:
+    name: Unit, UI and server tests with coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+            desktop/package-lock.json
+      - run: npm ci
+      - run: npm ci
+        working-directory: server
+      - run: npm ci
+        working-directory: desktop
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      - run: npm run test:all
+      # Both coverage steps fail the job when an area is below its §2 target.
+      - name: Client coverage (merged node + Vitest)
+        run: npm run coverage
+      - name: Server coverage
+        if: ${{ !cancelled() }}
+        run: npm run coverage
+        working-directory: server
+      - name: Upload coverage reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: coverage
+          path: |
+            coverage/merged/
+            server/coverage/merged/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  e2e:
+    name: End-to-end (Playwright)
+    runs-on: ubuntu-latest
+    env:
+      # Every project on pushes to main, Chromium desktop only everywhere else.
+      ALL_PROJECTS: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+      - run: npm ci
+      - run: npm ci
+        working-directory: server
+      - name: Install Playwright browsers (all)
+        if: ${{ env.ALL_PROJECTS == 'true' }}
+        run: npx playwright install --with-deps
+      - name: Install Playwright browsers (Chromium)
+        if: ${{ env.ALL_PROJECTS != 'true' }}
+        run: npx playwright install --with-deps chromium
+      - name: Run Playwright (chromium-desktop, pixel-7)
+        if: ${{ env.ALL_PROJECTS == 'true' }}
+        run: npm run test:e2e -- --project=chromium-desktop --project=pixel-7 --reporter=line,html
+      # iphone-14 (WebKit) is flaky and doesn't block yet: see docs/test-runs/W5.7.md on branch test/W5.7.
+      - name: Run Playwright (iphone-14, non-blocking)
+        if: ${{ env.ALL_PROJECTS == 'true' }}
+        continue-on-error: true
+        run: npm run test:e2e -- --project=iphone-14 --reporter=line
+      - name: Run Playwright (chromium-desktop)
+        if: ${{ env.ALL_PROJECTS != 'true' }}
+        run: npm run test:e2e -- --project=chromium-desktop --reporter=line,html
+      - name: Upload Playwright report
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14

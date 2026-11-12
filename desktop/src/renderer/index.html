@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!--
+      Only the page's own files run. Styles allow 'unsafe-inline' because Radix dialogs inject
+      <style> tags (react-remove-scroll); images allow data: for the QR code. The Vite dev
+      server relaxes this in dev only, for its inline React Refresh script and HMR socket
+      (launcherCsp in desktop/vite.config.js).
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Flip Showdown</title>
+  </head>
+  <body class="bg-background text-foreground antialiased">
+    <div id="root"></div>
+    <script type="module" src="./main.jsx"></script>
+  </body>
+</html>

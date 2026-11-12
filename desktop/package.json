@@ -1,0 +1,22 @@
+{
+  "name": "flip-showdown-desktop",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Desktop launcher for Flip Showdown: hosts the game and shares it through a quick tunnel",
+  "license": "MIT",
+  "author": "RuttyJ",
+  "type": "module",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "stage": "node scripts/stage.mjs",
+    "dist": "node scripts/dist.mjs",
+    "icon": "node scripts/icon.mjs",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "4.2.1",
+    "electron": "41.10.7",
+    "electron-builder": "26.18.0"
+  }
+}

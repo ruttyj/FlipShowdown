@@ -1,0 +1,98 @@
+# Packaging for the desktop launcher. Build with `npm run dist` (scripts/dist.mjs), which stages
+# build/{server,shared,dist}, fetches cloudflared into resources/ and passes the root
+# package.json version in as extraMetadata.version.
+appId: com.ruttyj.flipshowdown
+productName: Flip Showdown
+artifactName: Flip-Showdown-Setup-${version}.${ext}
+
+directories:
+  output: out
+  # Not the default "build": that folder holds the staged server, not installer resources.
+  buildResources: build-resources
+
+# The launcher itself (main, preload, renderer) goes into app.asar. It has no production
+# dependencies, so nothing native lives in the asar: the only native module (better-sqlite3)
+# ships with the staged server in extraResources, already rebuilt for Electron.
+# dist-renderer is built by root `npm run build:launcher`; scripts/dist.mjs fails if it's missing.
+files:
+  - package.json
+  - src/main/**/*
+  - src/preload/**/*
+  - src/shared/**/*
+  - dist-renderer/**/*
+  # The window icon main.js loads. electron-builder also makes the app icons from it
+  # (build-resources/icon.png, rendered from the site favicon by scripts/icon.mjs).
+  - build-resources/icon.png
+npmRebuild: false
+
+# Everything the forked server needs sits outside asar in process.resourcesPath, the layout
+# src/main/binaries.js expects: server/{package.json,src,node_modules}, shared, dist, cloudflared.
+extraResources:
+  - from: build/server
+    to: server
+    filter:
+      - package.json
+      - src/**/*
+  # electron-builder drops node_modules from an extraResources folder, so it needs its own entry.
+  - from: build/server/node_modules
+    to: server/node_modules
+    filter:
+      - "**/*"
+  - from: build/shared
+    to: shared
+  - from: build/dist
+    to: dist
+  # The licences: the app's own, and cloudflared's
+  # Apache-2.0 licence fetched by scripts/fetch-cloudflared.mjs. THIRD_PARTY_NOTICES.txt comes
+  # with the client build in dist/. The launcher's About section opens all three (X68).
+  - from: ../LICENSE
+    to: LICENSE.txt
+  - from: resources/cloudflared/LICENSE
+    to: cloudflared/LICENSE.txt
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  extraResources:
+    - from: resources/cloudflared/win32-x64
+      to: cloudflared/win32-x64
+
+mac:
+  category: public.app-category.games
+  target:
+    - target: dmg
+      arch:
+        - universal
+  # Ad-hoc signed, not notarized (decision 9). Hardened runtime would reject the ad-hoc signed
+  # Electron frameworks through library validation, so it stays off.
+  identity: "-"
+  hardenedRuntime: false
+  notarize: false
+  # Both single-arch cloudflared binaries ship in both halves of the universal app; the launcher
+  # runs the one for process.arch. better-sqlite3 is already universal (scripts/dist.mjs).
+  x64ArchFiles: Contents/Resources/cloudflared/darwin-*/cloudflared
+  extraResources:
+    - from: resources/cloudflared/darwin-x64
+      to: cloudflared/darwin-x64
+    - from: resources/cloudflared/darwin-arm64
+      to: cloudflared/darwin-arm64
+
+linux:
+  category: Game
+  target:
+    - target: AppImage
+      arch:
+        - x64
+  extraResources:
+    - from: resources/cloudflared/linux-x64
+      to: cloudflared/linux-x64
+
+# Used only with `--publish always` (the release workflow): uploads to a draft release for the
+# pushed tag, which a person reviews and publishes.
+publish:
+  provider: github
+  owner: ruttyj
+  repo: FlipShowdown
+  releaseType: draft

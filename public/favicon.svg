@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#312e81"/>
+      <stop offset=".5" stop-color="#0b0a24"/>
+      <stop offset="1" stop-color="#4c1d95"/>
+    </linearGradient>
+    <!-- The brand logo's FLIP fade: near-white into pale indigo (indigo-50 to indigo-200). -->
+    <linearGradient id="ink" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#eef2ff"/>
+      <stop offset="1" stop-color="#c7d2fe"/>
+    </linearGradient>
+    <filter id="lift" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#000" flood-opacity=".45"/>
+    </filter>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="url(#tile)"/>
+  <!-- The wordmark's F, drawn as bars so it renders the same without the logo font. -->
+  <g filter="url(#lift)" fill="url(#ink)">
+    <path d="M26 30a3 3 0 0 1 3-3h42a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H44v10h20a3 3 0 0 1 3 3v11a3 3 0 0 1-3 3H44v26a3 3 0 0 1-3 3H29a3 3 0 0 1-3-3z"/>
+  </g>
+  <!-- The logo's tilted gold card beside FLIP, with its thin light edge. -->
+  <g filter="url(#lift)" transform="rotate(14 88 82)">
+    <rect x="71" y="59" width="34" height="47" rx="6" fill="#fbbf24"/>
+    <rect x="73.5" y="61.5" width="29" height="42" rx="4" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="2"/>
+  </g>
+</svg>

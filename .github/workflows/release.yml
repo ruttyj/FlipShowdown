@@ -1,0 +1,112 @@
+# Builds the desktop launcher installers when a version tag (v1.0.0, ...) is pushed and uploads
+# them to a DRAFT GitHub Release. Nothing is published until a person reviews the draft and
+# clicks Publish. The tag must match the root package.json version.
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  draft:
+    name: Create the draft release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # No job uses git credentials (gh and electron-builder read GH_TOKEN from the step env), so
+      # the write token is kept out of .git/config, away from npm install scripts.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Check the tag matches package.json
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package.json version $version"
+            exit 1
+          fi
+      # Created once up front so the three build jobs upload into the same draft instead of
+      # racing to create one each.
+      - name: Create the draft (kept if it already exists)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Every release's notes start with the unofficial disclaimer (X67); GitHub's generated
+          # notes follow it.
+          DISCLAIMER: >-
+            Flip Showdown is an unofficial score keeper. It is not affiliated with, endorsed by or
+            sponsored by The Op Games. Flip 7 is a trademark of its owner.
+        run: |
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME already exists"
+          else
+            gh release create "$GITHUB_REF_NAME" --draft --verify-tag --generate-notes --notes "$DISCLAIMER" --title "Flip Showdown $GITHUB_REF_NAME"
+          fi
+
+  package:
+    name: Package (${{ matrix.os }})
+    needs: draft
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        # Windows NSIS x64, macOS universal DMG, Linux AppImage x64 (desktop/electron-builder.yml).
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      # @electron/rebuild needs Node 22.12 or later.
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            desktop/package-lock.json
+      - run: npm ci
+      - run: npm ci
+        working-directory: desktop
+      - name: Desktop tests
+        run: npm test
+        working-directory: desktop
+      # Builds the client and the launcher page, stages the server, fetches and verifies
+      # cloudflared, builds the installer and uploads it to the draft release for this tag.
+      - name: Package and upload
+        run: npm run dist -- --publish always
+        working-directory: desktop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # The versioned installer above keeps decision 20's name. This copy has a fixed name, so the
+      # README's https://github.com/<repo>/releases/latest/download/<name> links always fetch the
+      # newest published release.
+      - name: Upload a copy with a fixed name
+        shell: bash
+        working-directory: desktop/out
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          case "$RUNNER_OS" in
+            Windows) pattern='Flip-Showdown-Setup-*.exe'; fixed='Flip-Showdown-Setup-Windows.exe' ;;
+            macOS) pattern='Flip-Showdown-Setup-*.dmg'; fixed='Flip-Showdown-macOS.dmg' ;;
+            Linux) pattern='Flip-Showdown-Setup-*.AppImage'; fixed='Flip-Showdown-Linux.AppImage' ;;
+          esac
+          shopt -s nullglob
+          matches=($pattern)
+          if [ "${#matches[@]}" -ne 1 ]; then
+            echo "::error::Expected one $pattern in desktop/out, found ${#matches[@]}"
+            exit 1
+          fi
+          cp "${matches[0]}" "$fixed"
+          gh release upload "$GITHUB_REF_NAME" "$fixed" --clobber

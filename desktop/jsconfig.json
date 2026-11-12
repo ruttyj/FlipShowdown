@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "lib": ["esnext"],
+    "target": "esnext",
+    "checkJs": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "types": ["node"],
+    "maxNodeModuleJsDepth": 0
+  },
+  "include": ["src/main/**/*.js", "src/preload/**/*.cjs", "src/shared/**/*.cjs", "src/shared/**/*.d.ts", "test/**/*.js", "scripts/**/*.js", "scripts/**/*.mjs"],
+  "exclude": ["node_modules", "out", "build", "resources"]
+}

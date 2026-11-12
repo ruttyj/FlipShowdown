@@ -1,0 +1,10 @@
+# Betterleaks config for `npm run scan:secrets` (scripts/scan-secrets.mjs).
+# It extends the built-in rules and only adds allowlists. Allow a value here only after checking
+# it is not a secret, and say why. docs/testing.md has the workflow.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "RFC 6455's sample Sec-WebSocket-Key (base64 of 'the sample nonce'), used in server/test/realtime.test.js"
+regexes = ['''dGhlIHNhbXBsZSBub25jZQ==''']

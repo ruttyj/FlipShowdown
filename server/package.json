@@ -1,0 +1,28 @@
+{
+  "name": "flip-showdown-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Self-hosted backend for Flip Showdown",
+  "license": "MIT",
+  "type": "module",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "backup": "node src/backup.js",
+    "test": "node --test",
+    "coverage": "c8 --all --include=\"src/**\" --reporter=lcov --reporter=text-summary node --test && node ../scripts/merge-coverage.mjs --areas server --out coverage/merged coverage/lcov.info"
+  },
+  "dependencies": {
+    "better-sqlite3": "12.8.0",
+    "express": "^5.1.0",
+    "jose": "^6.2.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "c8": "^12.0.0",
+    "nodemon": "^3.1.14"
+  }
+}
