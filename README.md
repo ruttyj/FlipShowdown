@@ -94,7 +94,8 @@ checksum-checked `cloudflared` into `desktop/resources/cloudflared/` once and sk
 UI, stages the server, fetches `cloudflared` and runs electron-builder into `desktop/out/`.
 Pushing a `v*` tag that matches the root `package.json` version runs
 `.github/workflows/release.yml`, which builds all three installers into a draft GitHub Release to
-check and publish by hand. The root `package.json` version is the app's version.
+check and publish by hand. The run fails if the release stops being a draft before it ends, so
+publish only once every job is green. The root `package.json` version is the app's version.
 
 ## Screenshots
 
