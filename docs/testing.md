@@ -274,6 +274,9 @@ code changes on every run.
   a number of modes. Tests that need an unknown mode use `'not-a-mode'`.
 - A Vitest failure only under full-suite load usually means a slow file is hitting the 5 s
   timeout. Make the test fast; don't raise the limit.
+- Any UI test that opens the chat dialog mocks `emoji-picker-react` (see `ChatDialog.test.jsx`).
+  The real picker renders hundreds of emoji, and under the CI coverage run it pushed a dialog
+  opened by a single tap (300 ms wait first) past `findBy`'s 1 s. It passed every time locally.
 - **Server test data must be real** since the game tables have foreign keys (X84). A Player, RoundScore
   or ChatMessage needs an existing room (and a score an existing Player), a Player needs an email, and
   two Players in a room need different emails; otherwise the store answers 400/409. For records that

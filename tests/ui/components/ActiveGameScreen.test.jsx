@@ -9,6 +9,12 @@ vi.mock('@/api/game', () => import('../fixtures/fakeApi.jsx').then((fakes) => fa
 vi.mock('@/api/backend', () => import('../fixtures/fakeApi.jsx').then((fakes) => fakes.backendModule))
 vi.mock('@/api/ai', () => import('../fixtures/fakeApi.jsx').then((fakes) => fakes.aiModule))
 
+// The real emoji-picker-react renders hundreds of emoji. Under the CI coverage run that took the
+// chat dialog past findBy's 1 s, after a single tap's 300 ms wait. These tests don't use the picker.
+vi.mock('emoji-picker-react', () => ({
+  default: ({ searchPlaceholder }) => <input placeholder={searchPlaceholder} />,
+}))
+
 function renderActive({ me = makePlayer('p1'), others = [makePlayer('p2', { turn_order: 1 })], ...options }) {
   return renderRoomScreen(ActiveGameScreen, { me, others, ...options })
 }
