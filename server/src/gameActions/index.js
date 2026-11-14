@@ -1,15 +1,11 @@
 import express from 'express';
 import { ActionRegistry } from '../actions/ActionRegistry.js';
+import { CreateRoomAction, createRoomActions } from '../actions/rooms/index.js';
+import { ActionError } from '../domain/errors.js';
 import { isPlainObject } from '../lib/query.js';
+import { RoomService } from '../services/RoomService.js';
 import { joinAction, kickAction, leaveAction, makeHostAction, reorderAction } from './players.js';
-import {
-    closeAction,
-    createRoom,
-    deleteAction,
-    lookupRoomByCode,
-    setGameModeAction,
-    startAction,
-} from './rooms.js';
+import { closeAction, deleteAction, setGameModeAction, startAction } from './rooms.js';
 import { createRoomActionRunner } from './roomTx.js';
 import {
     editScoreAction,
@@ -25,6 +21,8 @@ import {
 
 // Routes for /api/rooms and /api/admin. Mounted after requireUser, so req.user is set.
 
+// The old action objects by name. The routes run the handler classes from actions/ where a group
+// has them; this map remains for the actions not moved yet and for the root test fixture.
 export const ACTIONS = {
     join: joinAction,
     leave: leaveAction,
@@ -59,23 +57,28 @@ function toHandler(action) {
     };
 }
 
-/** Every action in ACTIONS, by name. */
-function createActionRegistry() {
+/** The game services, built once per router on the store's repositories. */
+function createServices(repositories) {
+    return {
+        roomService: new RoomService({ roomRepository: repositories.rooms, playerRepository: repositories.players }),
+    };
+}
+
+/** Every game action by name: the groups' handler classes, then the ACTIONS not moved yet. */
+function createActionRegistry(services) {
     const registry = new ActionRegistry();
+    for (const handler of createRoomActions(services)) {
+        registry.add(handler.name, handler);
+    }
+
     for (const [name, action] of Object.entries(ACTIONS)) {
-        registry.add(name, toHandler(action));
+        const isMoved = registry.get(name) !== null;
+        if (!isMoved) {
+            registry.add(name, toHandler(action));
+        }
     }
     return registry;
 }
-
-/** POST /api/rooms: open to anyone signed in, and there is no room yet whose status to check. */
-const CREATE_ROOM_HANDLER = {
-    access: 'signed_in',
-    allowedStatuses: null,
-    handle(work, body) {
-        return createRoom(work, body);
-    },
-};
 
 // --- Responses -----------------------------------------------------------
 
@@ -99,7 +102,8 @@ function readBody(req) {
 }
 
 // --- Rooms ---------------------------------------------------------------
-// `actions` is { runner, registry }: a RoomActionRunner and the ActionRegistry of ACTIONS.
+// `actions` is { runner, registry, createRoom, roomService }: a RoomActionRunner, the
+// ActionRegistry of the game actions, the CreateRoomAction and the RoomService.
 
 function handleCreateRoom(actions, req, res) {
     const body = readBody(req);
@@ -109,7 +113,21 @@ function handleCreateRoom(actions, req, res) {
     }
 
     const request = { user: req.user, roomId: null, body };
-    sendResult(res, actions.runner.run(CREATE_ROOM_HANDLER, request));
+    sendResult(res, actions.runner.run(actions.createRoom, request));
+}
+
+function handleLookupByCode(actions, req, res) {
+    let body;
+    try {
+        body = actions.roomService.lookupByCode(req.user.email, req.params.code);
+    } catch (error) {
+        if (error instanceof ActionError) {
+            sendResult(res, { status: error.status, body: error.toBody() });
+            return;
+        }
+        throw error;
+    }
+    sendResult(res, { status: 200, body });
 }
 
 function handleAction(actions, req, res) {
@@ -130,13 +148,17 @@ function handleAction(actions, req, res) {
 }
 
 export function createRoomsRouter(context) {
-    const actions = { runner: createRoomActionRunner(context), registry: createActionRegistry() };
+    const services = createServices(context.store.repositories);
+    const actions = {
+        runner: createRoomActionRunner(context),
+        registry: createActionRegistry(services),
+        createRoom: new CreateRoomAction(services),
+        roomService: services.roomService,
+    };
     const router = express.Router();
 
     router.post('/', (req, res) => handleCreateRoom(actions, req, res));
-    router.get('/by-code/:code', (req, res) => {
-        sendResult(res, lookupRoomByCode(context.store, req.user, req.params.code));
-    });
+    router.get('/by-code/:code', (req, res) => handleLookupByCode(actions, req, res));
     router.post('/:roomId/actions/:name', (req, res) => handleAction(actions, req, res));
 
     return router;
