@@ -1,6 +1,6 @@
-import { badRequest } from '../../domain/errors.js';
+import { badRequest } from '../domain/errors.js';
 
-// Body parsing shared by the player actions that name a player.
+// Body parsing shared by the actions that name a player (kick, make-host and edit-score).
 
 /** The body's player_id, or a 400 `bad_request` when it isn't a non-empty string. */
 export function requirePlayerId(body) {

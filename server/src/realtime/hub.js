@@ -7,9 +7,9 @@ import {
     VOTE_HOLD_MS,
 } from '../../../shared/realtimeProtocol.js';
 import { createEntryStatusTracker, isEntryState } from '../managers/entryStatus.js';
-import { isHostPlayer } from '../gameActions/roomTx.js';
 import { buildRoomStats } from '../managers/roomStats.js';
 import { createVoteTracker, HOST_OFFLINE_GRACE_MS } from '../managers/votes.js';
+import { isHostPlayer } from '../services/PlayerService.js';
 
 // WebSocket ping frames, only for terminating dead sockets. Their pongs don't
 // count as liveness: the browser answers them even for a hidden tab.

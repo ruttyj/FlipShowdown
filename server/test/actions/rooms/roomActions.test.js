@@ -3,6 +3,7 @@ import { describe, test } from 'node:test';
 import { CloseAction } from '../../../src/actions/rooms/CloseAction.js';
 import { CreateRoomAction } from '../../../src/actions/rooms/CreateRoomAction.js';
 import { DeleteRoomAction } from '../../../src/actions/rooms/DeleteRoomAction.js';
+import { LookupByCodeAction } from '../../../src/actions/rooms/LookupByCodeAction.js';
 import { SetGameModeAction } from '../../../src/actions/rooms/SetGameModeAction.js';
 import { StartAction } from '../../../src/actions/rooms/StartAction.js';
 import { createRoomActions } from '../../../src/actions/rooms/index.js';
@@ -10,7 +11,8 @@ import { OPEN_STATUSES } from '../../../src/domain/entities.js';
 import { ActionError } from '../../../src/domain/errors.js';
 
 // The room action handlers on a fake RoomService: what each declares, how it parses the body and
-// which service method it calls with what. RoomService.test covers the rules themselves.
+// which service method it calls with what, plus the by-code lookup's answers. RoomService.test
+// covers the rules themselves.
 
 const WORK = { marker: 'the unit of work' };
 
@@ -145,5 +147,48 @@ describe('room actions', () => {
 
         assertBadRequest(() => handler.handle(WORK, { max_score: 200, game_mode: null }), 'game_mode is not a game mode');
         assert.deepEqual(roomService.calls, []);
+    });
+});
+
+describe('LookupByCodeAction', () => {
+    const USER = { email: 'ann@example.com' };
+
+    test('answers 200 with what RoomService#lookupByCode returns for the caller\'s email', () => {
+        const calls = [];
+        const roomService = {
+            lookupByCode(email, rawCode) {
+                calls.push([email, rawCode]);
+                return { room: { id: 'r1' }, players: [], my_player: null };
+            },
+        };
+
+        const result = new LookupByCodeAction({ roomService }).lookup(USER, ' abcdef ');
+
+        assert.deepEqual(result, { status: 200, body: { room: { id: 'r1' }, players: [], my_player: null } });
+        assert.deepEqual(calls, [['ann@example.com', ' abcdef ']]);
+    });
+
+    test('answers an ActionError with its status and body', () => {
+        const roomService = {
+            lookupByCode() {
+                throw new ActionError(404, 'room_not_found', 'Room not found');
+            },
+        };
+
+        assert.deepEqual(new LookupByCodeAction({ roomService }).lookup(USER, 'NOPE22'), {
+            status: 404,
+            body: { message: 'Room not found', code: 'room_not_found' },
+        });
+    });
+
+    test('rethrows any other error', () => {
+        const failure = new Error('disk on fire');
+        const roomService = {
+            lookupByCode() {
+                throw failure;
+            },
+        };
+
+        assert.throws(() => new LookupByCodeAction({ roomService }).lookup(USER, 'ABCDEF'), failure);
     });
 });

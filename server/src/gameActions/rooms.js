@@ -1,9 +1,9 @@
 import { CloseAction } from '../actions/rooms/CloseAction.js';
 import { CreateRoomAction } from '../actions/rooms/CreateRoomAction.js';
 import { DeleteRoomAction } from '../actions/rooms/DeleteRoomAction.js';
+import { LookupByCodeAction } from '../actions/rooms/LookupByCodeAction.js';
 import { SetGameModeAction } from '../actions/rooms/SetGameModeAction.js';
 import { StartAction } from '../actions/rooms/StartAction.js';
-import { ActionError } from '../domain/errors.js';
 import { RoomService } from '../services/RoomService.js';
 
 // The room actions' original function API, as thin adapters over RoomService and the handlers in
@@ -48,18 +48,8 @@ export const startAction = asActionObject(StartAction);
 export const closeAction = asActionObject(CloseAction);
 export const deleteAction = asActionObject(DeleteRoomAction);
 
-/**
- * GET /api/rooms/by-code/:code for the join screen (RoomService#lookupByCode), as
- * { status, body } ready to send.
- */
+/** See LookupByCodeAction#lookup. */
 export function lookupRoomByCode(store, user, rawCode) {
-    try {
-        const body = roomServiceFor(store).lookupByCode(user.email, rawCode);
-        return { status: 200, body };
-    } catch (error) {
-        if (error instanceof ActionError) {
-            return { status: error.status, body: error.toBody() };
-        }
-        throw error;
-    }
+    const action = new LookupByCodeAction({ roomService: roomServiceFor(store) });
+    return action.lookup(user, rawCode);
 }

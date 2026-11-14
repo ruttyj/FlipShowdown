@@ -1,5 +1,6 @@
 import { makeHostAction } from './players.js';
-import { isHostPlayer, runRoomAction, SYSTEM_USER } from './roomTx.js';
+import { isHostPlayer } from '../services/PlayerService.js';
+import { runRoomAction, SYSTEM_USER } from './roomTx.js';
 
 // Hold-to-vote topics (see votes.js). Each entry is:
 //   validateOption(room, players, option) - whether `option` may be voted for

@@ -1,5 +1,5 @@
 import { OPEN_STATUSES } from '../../domain/entities.js';
-import { requirePlayerId } from './requirePlayerId.js';
+import { requirePlayerId } from '../requirePlayerId.js';
 
 /** POST kick: removes another player. Body { player_id }. */
 export class KickAction {

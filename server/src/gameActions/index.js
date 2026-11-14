@@ -1,9 +1,8 @@
 import express from 'express';
 import { ActionRegistry } from '../actions/ActionRegistry.js';
 import { createPlayerActions } from '../actions/players/index.js';
-import { CreateRoomAction, createRoomActions } from '../actions/rooms/index.js';
+import { CreateRoomAction, LookupByCodeAction, createRoomActions } from '../actions/rooms/index.js';
 import { createScoringActions } from '../actions/scoring/index.js';
-import { ActionError } from '../domain/errors.js';
 import { isPlainObject } from '../lib/query.js';
 import { PlayerService } from '../services/PlayerService.js';
 import { RoomService } from '../services/RoomService.js';
@@ -107,8 +106,8 @@ function readBody(req) {
 }
 
 // --- Rooms ---------------------------------------------------------------
-// `actions` is { runner, registry, createRoom, roomService }: a RoomActionRunner, the
-// ActionRegistry of the game actions, the CreateRoomAction and the RoomService.
+// `actions` is { runner, registry, createRoom, lookupByCode }: a RoomActionRunner, the
+// ActionRegistry of the game actions, the CreateRoomAction and the LookupByCodeAction.
 
 function handleCreateRoom(actions, req, res) {
     const body = readBody(req);
@@ -122,17 +121,7 @@ function handleCreateRoom(actions, req, res) {
 }
 
 function handleLookupByCode(actions, req, res) {
-    let body;
-    try {
-        body = actions.roomService.lookupByCode(req.user.email, req.params.code);
-    } catch (error) {
-        if (error instanceof ActionError) {
-            sendResult(res, { status: error.status, body: error.toBody() });
-            return;
-        }
-        throw error;
-    }
-    sendResult(res, { status: 200, body });
+    sendResult(res, actions.lookupByCode.lookup(req.user, req.params.code));
 }
 
 function handleAction(actions, req, res) {
@@ -158,7 +147,7 @@ export function createRoomsRouter(context) {
         runner: createRoomActionRunner(context),
         registry: createActionRegistry(services),
         createRoom: new CreateRoomAction(services),
-        roomService: services.roomService,
+        lookupByCode: new LookupByCodeAction(services),
     };
     const router = express.Router();
 

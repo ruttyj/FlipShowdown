@@ -1,13 +1,16 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
+import { requirePlayerId } from '../../../src/actions/requirePlayerId.js';
 import {
     requireBoolean,
-    requirePlayerId,
     requireRoundNumber,
     requireScore,
     requireWins,
 } from '../../../src/actions/scoring/scoreBody.js';
 import { ActionError } from '../../../src/domain/errors.js';
+
+// The scoring handlers' body parsing, plus requirePlayerId, which they share with the player
+// handlers.
 
 /** Asserts that `action` throws a 400 bad_request whose message matches `pattern`. */
 function assertBadRequest(action, pattern) {

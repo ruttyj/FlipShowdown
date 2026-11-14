@@ -3,10 +3,12 @@ import { DeleteRoomAction } from './DeleteRoomAction.js';
 import { SetGameModeAction } from './SetGameModeAction.js';
 import { StartAction } from './StartAction.js';
 
-// The room actions run by name through the ActionRegistry. Room creation isn't one of them: the
-// rooms router runs CreateRoomAction for POST /api/rooms directly.
+// The room actions run by name through the ActionRegistry. Room creation and the by-code lookup
+// aren't among them: the rooms router runs CreateRoomAction for POST /api/rooms and
+// LookupByCodeAction for GET /api/rooms/by-code/:code itself.
 
 export { CreateRoomAction } from './CreateRoomAction.js';
+export { LookupByCodeAction } from './LookupByCodeAction.js';
 
 /** The registered room action handlers. `services` holds at least { roomService }. */
 export function createRoomActions(services) {

@@ -1,5 +1,5 @@
 import { OPEN_STATUSES } from '../../domain/entities.js';
-import { requirePlayerId } from './requirePlayerId.js';
+import { requirePlayerId } from '../requirePlayerId.js';
 
 /** POST make-host: hands the host role to another player. Body { player_id }. */
 export class MakeHostAction {

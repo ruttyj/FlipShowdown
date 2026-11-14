@@ -1,5 +1,6 @@
 import { requireEditableRound } from '../../services/ScoringService.js';
-import { requirePlayerId, requireRoundNumber, requireScore } from './scoreBody.js';
+import { requirePlayerId } from '../requirePlayerId.js';
+import { requireRoundNumber, requireScore } from './scoreBody.js';
 
 /** edit-score: the host's correction of any player's score (see ScoringService#editScore). */
 export class EditScoreAction {

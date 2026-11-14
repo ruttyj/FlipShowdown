@@ -35,14 +35,6 @@ export function requireRoundNumber(body) {
     return roundNumber;
 }
 
-export function requirePlayerId(body) {
-    const playerId = body.player_id;
-    if (typeof playerId !== 'string' || playerId === '') {
-        throw badRequest('player_id must be a non-empty string');
-    }
-    return playerId;
-}
-
 /** { player_id: wins } with every wins an integer >= 0. */
 export function requireWins(body) {
     const wins = body.wins;
