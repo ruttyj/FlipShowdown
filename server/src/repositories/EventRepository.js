@@ -61,6 +61,12 @@ export class EventRepository {
         this.epochValue = ensureEpoch(this.statements);
         // The newest event is never trimmed, so MAX(seq) survives restarts.
         this.lastSeqValue = this.statements.maxSeq.get().seq ?? 0;
+        this.insertAndTrim = database.prepareTransaction((rows, newestSeq) => {
+            for (const row of rows) {
+                this.statements.insertEvent.run(row.seq, row.roomId, row.entity, row.text);
+            }
+            this.trim(newestSeq);
+        });
     }
 
     /** This log's id, the same for as long as the database keeps its `meta` table. */
@@ -97,12 +103,7 @@ export class EventRepository {
 
         const rows = numberEntries(entries, this.lastSeqValue);
         const newestSeq = rows[rows.length - 1].seq;
-        this.database.transaction(() => {
-            for (const row of rows) {
-                this.statements.insertEvent.run(row.seq, row.roomId, row.entity, row.text);
-            }
-            this.trim(newestSeq);
-        });
+        this.insertAndTrim(rows, newestSeq);
 
         this.lastSeqValue = newestSeq;
         return rows.map((row) => ({ seq: row.seq, text: row.text }));

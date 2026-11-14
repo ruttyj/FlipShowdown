@@ -111,7 +111,7 @@ export class TableRepository {
      * user created for it goes away if the insert fails.
      */
     insert(item, createdBy) {
-        return this.database.transaction(() => this.insertRow(item, createdBy));
+        return this.database.transaction(() => this.#insertRow(item, createdBy));
     }
 
     /**
@@ -119,7 +119,7 @@ export class TableRepository {
      * is no such record. A field set to undefined is cleared. Atomic like insert.
      */
     update(id, changes) {
-        return this.database.transaction(() => this.updateRow(id, changes));
+        return this.database.transaction(() => this.#updateRow(id, changes));
     }
 
     /** Deletes the record (the foreign keys cascade to its children) and returns it as it was. */
@@ -134,9 +134,9 @@ export class TableRepository {
     }
 
     // --- Write helpers -------------------------------------------------------
-    // Not atomic on their own: insert and update run them inside a transaction.
+    // Private because they are not atomic on their own: insert and update run them inside a transaction.
 
-    insertRow(item, createdBy) {
+    #insertRow(item, createdBy) {
         return translateConstraintErrors(() => {
             const id = generateId();
             const timestamp = currentTimestamp();
@@ -153,7 +153,7 @@ export class TableRepository {
         });
     }
 
-    updateRow(id, changes) {
+    #updateRow(id, changes) {
         return translateConstraintErrors(() => {
             const row = this.statements.get.get(id);
             if (!row) {

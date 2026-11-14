@@ -28,7 +28,7 @@ const SCHEMA = `
         updated_date TEXT NOT NULL
     );
 
-    -- Realtime event log (see eventLog.js). text is the event message as sent.
+    -- Realtime event log (see repositories/EventRepository.js). text is the event message as sent.
     CREATE TABLE IF NOT EXISTS events (
         seq     INTEGER PRIMARY KEY,
         room_id TEXT,

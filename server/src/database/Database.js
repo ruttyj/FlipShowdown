@@ -59,6 +59,15 @@ export class Database {
         return this.connection.transaction(fn)();
     }
 
+    /**
+     * Builds the transaction once and returns a function that runs `fn` in it with the arguments
+     * it is given, for a hot path where `transaction` would build a new wrapper on every call.
+     * Same rollback and savepoint behaviour as `transaction`.
+     */
+    prepareTransaction(fn) {
+        return this.connection.transaction(fn);
+    }
+
     close() {
         this.connection.close();
     }

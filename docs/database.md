@@ -465,7 +465,7 @@ foreign keys: the game code keeps them current, and chat outlives the players wh
 | Table | Columns | Constraints and indexes | Used by |
 | --- | --- | --- | --- |
 | `records` | `seq` INTEGER PK autoincrement, `entity`, `id`, `data` (JSON) TEXT NOT NULL, `created_date`, `updated_date` NOT NULL, `created_by` | UNIQUE `records_entity_id (entity, id)`; `records_room_id (entity, json_extract(data, '$.room_id'))` | Entities added through `ENTITIES` (not the four game entities) |
-| `events` | `seq` INTEGER PK, `room_id` TEXT, `entity` TEXT NOT NULL, `text` TEXT NOT NULL | | Realtime replay log (`database/eventLog.js`), trimmed to the newest 5000 |
+| `events` | `seq` INTEGER PK, `room_id` TEXT, `entity` TEXT NOT NULL, `text` TEXT NOT NULL | | Realtime replay log (`repositories/EventRepository.js`), trimmed to the newest 5000 |
 | `meta` | `key` TEXT PK, `value` TEXT NOT NULL | | `epoch` for the event log |
 | `schema_migrations` | `version` INTEGER PK, `name` TEXT NOT NULL, `applied_at` TEXT NOT NULL | | Migration runner |
 | `legacy_orphans` | the old `records` columns, `seq` as PK, plus `reason` and `moved_date` TEXT NOT NULL | | Rows 0004 couldn't move; `reason` is `missing_room`, `missing_player`, `no_user` or `duplicate_member` (X87) |

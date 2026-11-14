@@ -130,7 +130,10 @@ export function openStore(dataDir, { eventLogLimit } = {}) {
             return users.upsert(email, fullName);
         },
 
-        /** The updated user, or undefined (not null, as the store always returned) when there is none. */
+        /**
+         * The updated user, or undefined when there is no such user (as the store always returned;
+         * UserRepository#setName gives null).
+         */
         setUserName(email, fullName) {
             return users.setName(email, fullName) ?? undefined;
         },
