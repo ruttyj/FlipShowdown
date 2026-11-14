@@ -14,7 +14,8 @@ import {
 } from './fakeSockets.js';
 
 // EntryStatusManager over fake sockets, fixed Players and GameRooms and the real
-// SubscriptionManager. Ann and Bob play in r1, which is in round 2; Ann also plays in r2. The held
+// SubscriptionManager. Ann, Bob and the admin play in r1, which is in round 2; Ann also plays in
+// r2. Because the admin is a player, an admin socket subscribed to r1 acts as admin-1. The held
 // status timer runs on node:test's mock timers; the clock the tracker reads is set by hand.
 
 const ANN = 'ann@example.com';

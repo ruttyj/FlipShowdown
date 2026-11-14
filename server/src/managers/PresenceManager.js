@@ -42,7 +42,7 @@ export class PresenceManager {
     #clock;
     #connections;
     #subscriptions;
-    #onStatsChanged;
+    #onPresenceChanged;
     #onRefreshed;
     // The managers onlineSockets.js reads the sockets through: { connections, subscriptions }.
     #socketManagers;
@@ -54,18 +54,18 @@ export class PresenceManager {
      * update(playerId, changes) }). `clock` is the hub's Clock, `connections` the
      * ConnectionManager and `subscriptions` the SubscriptionManager.
      *
-     * Hooks: `onStatsChanged()` runs when a room's presence changed, since who is online is what
+     * Hooks: `onPresenceChanged()` runs when a room's presence changed, since who is online is what
      * the launcher counts (X66). `onRefreshed(roomId, presencePlayers, { force, skipSocket })`
      * ends every refresh; the hub refreshes the room's votes there, since the voters are the
      * online players.
      */
-    constructor({ rooms, players, clock, connections, subscriptions, onStatsChanged, onRefreshed }) {
+    constructor({ rooms, players, clock, connections, subscriptions, onPresenceChanged, onRefreshed }) {
         this.#rooms = rooms;
         this.#players = players;
         this.#clock = clock;
         this.#connections = connections;
         this.#subscriptions = subscriptions;
-        this.#onStatsChanged = onStatsChanged;
+        this.#onPresenceChanged = onPresenceChanged;
         this.#onRefreshed = onRefreshed;
         this.#socketManagers = { connections, subscriptions };
     }
@@ -94,7 +94,7 @@ export class PresenceManager {
 
         if (hasChanged || force) {
             this.#subscriptions.sendToRoom(roomId, text, skipSocket);
-            this.#onStatsChanged();
+            this.#onPresenceChanged();
         }
         this.#onRefreshed(roomId, players, { force, skipSocket });
     }

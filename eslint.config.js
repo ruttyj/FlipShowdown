@@ -5,18 +5,25 @@ import pluginReactHooks from "eslint-plugin-react-hooks";
 import pluginUnusedImports from "eslint-plugin-unused-imports";
 
 // --- Server layer rule -------------------------------------------------------------------
-// server/src is layered top to bottom: entry, handlers, logic, data, base. Imports may only
-// go down (proposals.html A2). ESLint's core no-restricted-imports can't resolve paths, so
-// each pattern is a regex on the import string that matches a layer folder as a whole path
-// segment: "../gameActions/roomTx.js" matches (^|/)gameActions/, but
+// server/src is layered top to bottom: compose, entry, handlers, logic, data, base. Imports may
+// only go down (proposals.html A1, A2). ESLint's core no-restricted-imports can't resolve
+// paths, so each pattern is a regex on the import string that matches a layer folder as a whole
+// path segment: "../gameActions/roomTx.js" matches (^|/)gameActions/, but
 // "../../../shared/realtimeProtocol.js" doesn't match (^|/)realtime/. Folders that don't
 // exist yet are listed so the rule is ready when they arrive. Dynamic import() isn't checked.
 
-const ENTRY_IMPORTS = {
+// The compose layer builds the server: app.js, index.js and providers/ (the App container and
+// the providers). Nothing below it may import them.
+const COMPOSE_IMPORTS = {
   // app.js and index.js sit in server/src itself, so a layer folder imports them as
   // "../app.js". No folder below server/src has an index.js that a child folder imports.
-  regex: "(^|/)(http|realtime|providers)/|(^|/)app\\.js$|^(\\.\\./)+index\\.js$",
-  message: "Lower layers may not import the entry layer (app, index, http, realtime, providers).",
+  regex: "(^|/)providers/|(^|/)app\\.js$|^(\\.\\./)+index\\.js$",
+  message: "Only the compose layer may import app.js, index.js or providers/.",
+};
+
+const ENTRY_IMPORTS = {
+  regex: "(^|/)(http|realtime)/",
+  message: "Lower layers may not import the entry layer (http, realtime).",
 };
 
 const HANDLER_IMPORTS = {
@@ -194,9 +201,9 @@ export default [
     },
   },
   {
-    // Entry (app.js, index.js, http/, realtime/, providers/) and anything else in server/src.
-    // The layer blocks below replace this rule's options for their folders, so each of them
-    // bans gameActions/ too (logic, data and base through HANDLER_IMPORTS).
+    // Compose (app.js, index.js, providers/) and anything else in server/src. The layer blocks
+    // below replace this rule's options for their folders, so each of them bans gameActions/ too
+    // (logic, data and base through HANDLER_IMPORTS).
     files: ["server/src/**/*.js"],
     ignores: ["server/src/gameActions/**"],
     rules: {
@@ -204,31 +211,43 @@ export default [
     },
   },
   {
+    // Entry.
+    files: ["server/src/http/**/*.js", "server/src/realtime/**/*.js"],
+    rules: {
+      "no-restricted-imports": banImports(COMPOSE_IMPORTS, GAME_ACTIONS_IMPORTS),
+    },
+  },
+  {
     // Handlers.
     files: ["server/src/actions/**/*.js"],
     rules: {
-      "no-restricted-imports": banImports(ENTRY_IMPORTS, GAME_ACTIONS_IMPORTS),
+      "no-restricted-imports": banImports(COMPOSE_IMPORTS, ENTRY_IMPORTS, GAME_ACTIONS_IMPORTS),
     },
   },
   {
     // The test-facing adapters wrap the handlers and services, but not the entry layer.
     files: ["server/src/gameActions/**/*.js"],
     rules: {
-      "no-restricted-imports": banImports(ENTRY_IMPORTS),
+      "no-restricted-imports": banImports(COMPOSE_IMPORTS, ENTRY_IMPORTS),
     },
   },
   {
     // Logic. Managers may import services: they share a layer.
     files: ["server/src/services/**/*.js", "server/src/managers/**/*.js"],
     rules: {
-      "no-restricted-imports": banImports(ENTRY_IMPORTS, HANDLER_IMPORTS),
+      "no-restricted-imports": banImports(COMPOSE_IMPORTS, ENTRY_IMPORTS, HANDLER_IMPORTS),
     },
   },
   {
     // Data.
     files: ["server/src/repositories/**/*.js", "server/src/database/**/*.js"],
     rules: {
-      "no-restricted-imports": banImports(ENTRY_IMPORTS, HANDLER_IMPORTS, LOGIC_IMPORTS),
+      "no-restricted-imports": banImports(
+        COMPOSE_IMPORTS,
+        ENTRY_IMPORTS,
+        HANDLER_IMPORTS,
+        LOGIC_IMPORTS,
+      ),
     },
   },
   {
@@ -240,6 +259,7 @@ export default [
     ],
     rules: {
       "no-restricted-imports": banImports(
+        COMPOSE_IMPORTS,
         ENTRY_IMPORTS,
         HANDLER_IMPORTS,
         LOGIC_IMPORTS,

@@ -25,7 +25,7 @@ function readBody(req) {
 }
 
 // --- Rooms ---------------------------------------------------------------
-// `actions` is the result of createGameActions: { runner, registry, createRoom, lookupByCode }.
+// `actions` is { runner, registry, createRoom, lookupByCode } (see providers/HttpProvider.js).
 
 function handleCreateRoom(actions, req, res) {
     const body = readBody(req);
@@ -59,7 +59,7 @@ function handleAction(actions, req, res) {
     sendResult(res, actions.runner.run(handler, request));
 }
 
-/** The /api/rooms router over the game actions (see actions/createGameActions.js). */
+/** The /api/rooms router over the game actions (see providers/GameProvider.js). */
 export function createRoomsRouter(actions) {
     const router = express.Router();
 

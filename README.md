@@ -156,6 +156,12 @@ delete it in AI Studio and create a new one.
   client). Rounds advance on the server as soon as every player has submitted, so nothing
   depends on the host's phone being awake. Generic writes to GameRoom, Player and
   RoundScore are blocked by default (`LOCK_GAME_ENTITIES`).
+- **The server is put together by providers.** `server/src/app.js` creates an `App` container
+  (`server/src/providers/App.js`) and adds one provider per area: config, database, auth, game
+  actions, AI, HTTP, realtime, launcher stats and the stale-room sweep. Each provider registers
+  its parts by name (built on first use), then all of them boot, and on shutdown they stop in
+  reverse order. Folders under `server/src` are layers whose imports only point down, which
+  `eslint.config.js` checks.
 - **Realtime is room-scoped.** A client only receives events for rooms it is a member of.
   The server tracks who is online (the offline badges next to players) and keeps a durable
   event log in SQLite, so after a reconnect or a server restart the client replays what it

@@ -75,6 +75,9 @@ Most of `src/lib` was built this way (`maxScore`, `scoreEntryCards`, `handEntry`
   `test.use({ serverEnv: { ... } })`, never `process.env`, because workers are reused.
   `e2e/fixtures/players.js` has `newPlayer(browser, name)`: a signed-in player in its own
   browser context. Usage is in each file's header comment.
+- **A part of the composed server** (the sweep, the launcher reporter, a clock): build an `App` with
+  `createProviders()` and `app.get` it, as `server/test/app/providers.test.js` does. `createServer`
+  only returns `{ app, server, store, hub, sweepStaleRooms, close }`.
 - **`server/test/fixtures/legacyDb.js`** writes a `flip7.db` as servers before migrations left it (the
   old schema, game records as JSON in `records`, no `schema_migrations`) and inserts raw rows into it.
   Close it, then open the store on the same folder to run the migrations (`legacyUpgrade.test.js`).

@@ -18,10 +18,11 @@ export class RoomSweepManager {
 
     /**
      * `rooms` is the RoomRepository (its listIdle) and `presence` answers hasPlayersOnline(roomId)
-     * (app.js passes the hub, so the answer is read through it at call time). `runner` is the
-     * RoomActionRunner and `deleteAction` the registry's `delete` handler, which it runs as the
-     * server. `clock` is a Clock and `logger` console-like. `maxIdleMs` is how long a room may sit
-     * untouched, or null to turn the sweep off; `intervalMs` is how often it runs after the first.
+     * (SchedulerProvider passes the hub, so the answer is read through it at call time). `runner`
+     * is the RoomActionRunner and `deleteAction` the registry's `delete` handler, which it runs as
+     * the server. `clock` is a Clock and `logger` console-like. `maxIdleMs` is how long a room may
+     * sit untouched, or null to turn the sweep off; `intervalMs` is how often it runs after the
+     * first.
      */
     constructor({
         rooms,

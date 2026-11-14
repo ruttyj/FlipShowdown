@@ -7,11 +7,11 @@ import { AccessPolicy } from './AccessPolicy.js';
 import { ActionRegistry } from './ActionRegistry.js';
 import { RoomActionRunner } from './RoomActionRunner.js';
 import { createPlayerActions } from './players/index.js';
-import { CreateRoomAction, LookupByCodeAction, createRoomActions } from './rooms/index.js';
+import { createRoomActions } from './rooms/index.js';
 import { createScoringActions } from './scoring/index.js';
 
-// Wiring for the game actions: the services, the handlers and the runner, built once by app.js and
-// shared by the rooms router, the vote topics and the stale-room sweep.
+// Builders for the game actions: the services, the handlers and their registry. The server builds
+// them once in providers/GameProvider.js; the test-facing adapters in gameActions/ build their own.
 
 /**
  * The game services. RoomService reads the store's `repositories`; the others are stateless and
@@ -53,8 +53,8 @@ export function createActionRegistry(services) {
 }
 
 /**
- * A RoomActionRunner for the app context ({ store, hub, config, logger }). The hub is read from
- * the context each time the runner publishes, since the app sets it after building the context.
+ * A RoomActionRunner for the adapters' context ({ store, hub, config, logger }). The hub is read
+ * from the context each time the runner publishes, so a test may set or replace it later.
  */
 export function createRoomActionRunner(context) {
     return new RoomActionRunner({
@@ -66,20 +66,4 @@ export function createRoomActionRunner(context) {
         getHub: () => context.hub,
         logger: context.logger,
     });
-}
-
-/**
- * Everything that runs game actions, for the app context ({ store, hub, config, logger }). Returns
- * { runner, registry, createRoom, lookupByCode }: a RoomActionRunner, the ActionRegistry of the
- * game actions, the CreateRoomAction for POST /api/rooms and the LookupByCodeAction for
- * GET /api/rooms/by-code/:code.
- */
-export function createGameActions(context) {
-    const services = createServices(context.store.repositories);
-    return {
-        runner: createRoomActionRunner(context),
-        registry: createActionRegistry(services),
-        createRoom: new CreateRoomAction(services),
-        lookupByCode: new LookupByCodeAction(services),
-    };
 }

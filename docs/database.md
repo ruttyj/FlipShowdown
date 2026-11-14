@@ -328,7 +328,7 @@ classDiagram
 
 ```mermaid
 sequenceDiagram
-    participant App as app.js
+    participant App as providers/DatabaseProvider.js
     participant Db as database/db.js + Database.js
     participant Runner as database/migrate.js
     participant Backup as database/backup.js

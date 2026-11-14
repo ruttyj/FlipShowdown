@@ -24,7 +24,7 @@ describe('PresenceManager', () => {
     let playerStore;
     let connections;
     let subscriptions;
-    let statsChanges;
+    let presenceChanges;
     let refreshes;
     let presence;
 
@@ -41,7 +41,7 @@ describe('PresenceManager', () => {
             players: playerStore,
             isAdmin: (identity) => identity.email === ADMIN,
         });
-        statsChanges = 0;
+        presenceChanges = 0;
         refreshes = [];
         presence = new PresenceManager({
             rooms: createFakeRooms([{ id: 'r1', code: 'AB12CD', status: 'playing', current_round: 1, max_score: 200 }]),
@@ -49,8 +49,8 @@ describe('PresenceManager', () => {
             clock: new Clock(() => time),
             connections,
             subscriptions,
-            onStatsChanged: () => {
-                statsChanges += 1;
+            onPresenceChanged: () => {
+                presenceChanges += 1;
             },
             onRefreshed: (roomId, presencePlayers, options) => {
                 refreshes.push({ roomId, presencePlayers, options });
@@ -89,7 +89,7 @@ describe('PresenceManager', () => {
             assert.deepEqual(onlineOf(message), [['ann-1', true], ['bob-1', true]]);
             assert.deepEqual(admin.messages(), [message]);
             assert.deepEqual(bob.sent, []);
-            assert.equal(statsChanges, 1);
+            assert.equal(presenceChanges, 1);
             assert.deepEqual(refreshes, [
                 { roomId: 'r1', presencePlayers: message.players, options: { force: false, skipSocket: bob } },
             ]);
@@ -101,11 +101,11 @@ describe('PresenceManager', () => {
 
             presence.refresh('r1');
             assert.equal(ann.sent.length, 1);
-            assert.equal(statsChanges, 1);
+            assert.equal(presenceChanges, 1);
 
             presence.refresh('r1', { force: true });
             assert.equal(ann.sent.length, 2);
-            assert.equal(statsChanges, 2);
+            assert.equal(presenceChanges, 2);
             assert.equal(refreshes.length, 3);
         });
 

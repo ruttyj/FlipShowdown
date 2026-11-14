@@ -12,9 +12,9 @@ export class RoomActionRunner {
      * repositories, both for the units of work. `store` is the store facade, which a unit of work
      * still exposes as `store` (see RoomUnitOfWork). `accessPolicy` is an AccessPolicy,
      * `adminEmails` the Set of admin emails and `logger` a console-like object.
-     * `getHub()` returns the realtime hub. It is a function because the app builds the hub after
-     * the runner's context, and the hub's methods are called on the object at publish time
-     * (tests replace them).
+     * `getHub()` returns the realtime hub. It is a function because the hub's vote topics need
+     * this runner, so the hub can't be passed in, and the hub's methods are called on the object
+     * at publish time (tests replace them).
      */
     constructor({ database, repositories, store, accessPolicy, adminEmails, getHub, logger }) {
         this.database = database;
