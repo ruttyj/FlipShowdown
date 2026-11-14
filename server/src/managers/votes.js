@@ -3,7 +3,7 @@ import { VOTE_HOLD_MS } from '../../../shared/realtimeProtocol.js';
 // Hold-to-vote: a server-owned unanimous vote per room and topic. Every
 // eligible (online) player holds the same option, and after `holdMs` of that
 // the topic's decision is carried out. This module only tracks holds, the
-// electorate and the pending timer; realtime/hub.js feeds it and broadcasts.
+// electorate and the pending timer; VoteManager feeds it and broadcasts.
 
 // How long the host must have been offline before a vote can pass without
 // them, so a host who only switched app or lost signal briefly keeps the role.

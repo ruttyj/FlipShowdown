@@ -4,6 +4,7 @@ import { WebSocket } from 'ws';
 import { LIVE_WINDOW_MS } from '../../../shared/realtimeProtocol.js';
 import { Clock } from '../../src/domain/clock.js';
 import { ConnectionManager } from '../../src/managers/ConnectionManager.js';
+import { Lifecycle } from '../../src/managers/Lifecycle.js';
 import { FakeSocket, createRecordingLogger } from './fakeSockets.js';
 
 // ConnectionManager on fake sockets and a settable clock. The timers run on node:test's mock
@@ -15,14 +16,17 @@ const LIVENESS_MS = 10;
 describe('ConnectionManager', () => {
     let time;
     let logger;
+    let lifecycle;
     let connections;
 
     beforeEach(() => {
         time = 1_000_000;
         logger = createRecordingLogger();
+        lifecycle = new Lifecycle({ logger });
         connections = new ConnectionManager({
             clients: new Set(),
             clock: new Clock(() => time),
+            lifecycle,
             logger,
             heartbeatIntervalMs: HEARTBEAT_MS,
             livenessCheckIntervalMs: LIVENESS_MS,
@@ -118,6 +122,14 @@ describe('ConnectionManager', () => {
     });
 
     describe('liveness', () => {
+        test('isLive reads the live flag set on the socket', () => {
+            const socket = connect();
+            assert.equal(connections.isLive(socket), true);
+
+            socket.isLive = false;
+            assert.equal(connections.isLive(socket), false);
+        });
+
         test('markHeard is true only when a stale socket comes back', () => {
             const socket = connect();
             time += 50;
@@ -191,23 +203,21 @@ describe('ConnectionManager', () => {
     });
 
     describe('close', () => {
-        test('stops the timers, terminates sockets and skips guarded handlers', () => {
+        test('stops both timers and terminates sockets', () => {
             mock.timers.enable({ apis: ['setInterval'] });
-            const received = [];
-            const socket = connect({ onMessage: (raw) => received.push(raw) });
+            const socket = connect();
             let checks = 0;
             connections.startTimers(() => {
                 checks += 1;
             });
 
+            // The lifecycle stays open, so only cleared timers keep the check and the pings away.
             connections.close();
             mock.timers.tick(HEARTBEAT_MS);
-            socket.emit('message', 'late');
 
             assert.equal(socket.isTerminated, true);
             assert.equal(socket.pings, 0);
             assert.equal(checks, 0);
-            assert.deepEqual(received, []);
         });
 
         test('works before the timers were started', () => {
@@ -216,7 +226,25 @@ describe('ConnectionManager', () => {
             connections.close();
 
             assert.equal(socket.isTerminated, true);
-            assert.equal(connections.isClosed, true);
+        });
+
+        test('once the lifecycle is closed, socket hooks and the periodic check are skipped', () => {
+            mock.timers.enable({ apis: ['setInterval'] });
+            const received = [];
+            const socket = connect({
+                onMessage: (raw) => received.push(raw),
+                onClose: () => received.push('closed'),
+            });
+            connections.startTimers(() => {
+                received.push('check');
+            });
+
+            lifecycle.close();
+            mock.timers.tick(LIVENESS_MS);
+            socket.emit('message', 'late');
+            socket.emit('close');
+
+            assert.deepEqual(received, []);
         });
     });
 });

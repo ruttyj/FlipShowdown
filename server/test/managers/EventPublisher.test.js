@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, test } from 'node:test';
 import { EventPublisher } from '../../src/managers/EventPublisher.js';
+import { Lifecycle } from '../../src/managers/Lifecycle.js';
 import { SubscriptionManager } from '../../src/managers/SubscriptionManager.js';
 import { EventRepository } from '../../src/repositories/EventRepository.js';
 import { openTempStore } from '../actions/roomFixture.js';
-import { FakeSocket, createFakeConnections, createPlayerReader } from './fakeSockets.js';
+import { FakeSocket, createFakeConnections, createFakePlayers, createRecordingLogger } from './fakeSockets.js';
 
 // EventPublisher on a real event log (a temp store) with fake sockets. Ann plays in r1 and Bob in
 // r2; who receives what is SubscriptionManager's rule, used here as it is in the hub.
@@ -17,6 +18,7 @@ describe('EventPublisher', () => {
     let temp;
     let connections;
     let subscriptions;
+    let logger;
     let publisher;
 
     beforeEach(() => {
@@ -28,10 +30,16 @@ describe('EventPublisher', () => {
         connections = createFakeConnections();
         subscriptions = new SubscriptionManager({
             connections,
-            players: createPlayerReader(players),
+            players: createFakePlayers(players),
             isAdmin: (identity) => identity.email === ADMIN,
         });
-        publisher = new EventPublisher({ eventLog: temp.store.eventLog, connections, subscriptions });
+        logger = createRecordingLogger();
+        publisher = new EventPublisher({
+            eventLog: temp.store.eventLog,
+            connections,
+            subscriptions,
+            lifecycle: new Lifecycle({ logger }),
+        });
     });
 
     afterEach(() => {
@@ -96,14 +104,6 @@ describe('EventPublisher', () => {
 
         test('each event is sent under the guard, so one failed send does not stop the rest', () => {
             const ann = subscribe(ANN, ['r1']);
-            const failures = [];
-            connections.runGuarded = (label, handler) => {
-                try {
-                    handler();
-                } catch {
-                    failures.push(label);
-                }
-            };
             let sends = 0;
             ann.send = (text) => {
                 sends += 1;
@@ -115,7 +115,7 @@ describe('EventPublisher', () => {
 
             publisher.publishAll([playerEvent('ann-1', 'r1'), playerEvent('ann-1', 'r1')]);
 
-            assert.deepEqual(failures, ['Player event']);
+            assert.deepEqual(logger.calls.map((call) => [call[0], call[1]]), [['error', 'Realtime Player event failed']]);
             assert.equal(ann.sent.length, 1);
         });
 
@@ -155,7 +155,8 @@ describe('EventPublisher', () => {
         test('resyncs a client whose next event was trimmed from the log', () => {
             // A second view of the same log that keeps only the newest event.
             const eventLog = new EventRepository(temp.store.database, { maxEvents: 1 });
-            const trimming = new EventPublisher({ eventLog, connections, subscriptions });
+            const lifecycle = new Lifecycle({ logger });
+            const trimming = new EventPublisher({ eventLog, connections, subscriptions, lifecycle });
 
             trimming.publishAll([playerEvent('ann-1', 'r1'), playerEvent('ann-1', 'r1')]);
             const lastSeq = trimming.seq;

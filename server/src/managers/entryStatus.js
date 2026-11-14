@@ -1,7 +1,7 @@
 // The "entering cards" signal (X40): who in a room is scanning or typing their cards right now.
 // Advisory and in memory only, so it never touches a game action, `version` or the event log,
 // and a restart loses it until clients re-announce on `ready`. This module only tracks entries;
-// realtime/hub.js checks the messages and broadcasts.
+// EntryStatusManager checks the messages and broadcasts.
 //
 // An entry belongs to the player, not the socket, and ends by time rather than on close,
 // because opening the camera kills the socket at the moment scanning starts (X26).

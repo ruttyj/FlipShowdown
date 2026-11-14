@@ -2,8 +2,8 @@ import { WebSocket } from 'ws';
 import { LIVE_WINDOW_MS } from '../../../shared/realtimeProtocol.js';
 
 // The realtime sockets themselves: whether each one is still connected and whether its page is
-// live, the heartbeat and liveness timers, sending, and the guard every socket and timer callback
-// runs under. It knows nothing about rooms; the hub turns a liveness change into presence updates.
+// live, the heartbeat and liveness timers, and sending. It knows nothing about rooms; the hub turns
+// a liveness change into presence updates.
 //
 // Two separate signals, set on each socket:
 //   isAlive     - answered the last WebSocket ping. Only used to terminate dead sockets: the
@@ -16,31 +16,33 @@ export const LIVENESS_CHECK_INTERVAL_MS = 5_000;
 
 export class ConnectionManager {
     /**
-     * `clients` is the WebSocketServer's live set of sockets, `clock` a Clock and `logger` a
-     * console-like object. The intervals are how often the heartbeat pings and how often the
-     * periodic check (see startTimers) runs.
+     * `clients` is the WebSocketServer's live set of sockets, `clock` a Clock, `lifecycle` the
+     * hub's Lifecycle (socket and timer callbacks run under its guard) and `logger` a console-like
+     * object. The intervals are how often the heartbeat pings and how often the periodic check
+     * (see startTimers) runs.
      */
     constructor({
         clients,
         clock,
+        lifecycle,
         logger,
         heartbeatIntervalMs = HEARTBEAT_INTERVAL_MS,
         livenessCheckIntervalMs = LIVENESS_CHECK_INTERVAL_MS,
     }) {
         this.clients = clients;
         this.clock = clock;
+        this.lifecycle = lifecycle;
         this.logger = logger;
         this.heartbeatIntervalMs = heartbeatIntervalMs;
         this.livenessCheckIntervalMs = livenessCheckIntervalMs;
         this.timers = [];
-        this.isClosed = false;
     }
 
     // --- Sockets -------------------------------------------------------------
 
     /**
      * Starts tracking a newly connected socket: it counts as alive and live, and its events go to
-     * the hooks, each under runGuarded. `hooks` is { onMessage(raw), onClose() }.
+     * the hooks, each under the lifecycle's guard. `hooks` is { onMessage(raw), onClose() }.
      */
     register(socket, { onMessage, onClose }) {
         socket.isAlive = true;
@@ -51,10 +53,10 @@ export class ConnectionManager {
             socket.isAlive = true;
         });
         socket.on('message', (raw) => {
-            this.runGuarded('message', () => onMessage(raw));
+            this.lifecycle.runGuarded('message', () => onMessage(raw));
         });
         socket.on('close', () => {
-            this.runGuarded('close', onClose);
+            this.lifecycle.runGuarded('close', onClose);
         });
         socket.on('error', (error) => {
             this.logger.warn(`Realtime socket error: ${error.message}`);
@@ -72,6 +74,11 @@ export class ConnectionManager {
     }
 
     // --- Liveness ------------------------------------------------------------
+
+    /** Whether the socket's page sent a `ping` recently enough to make its player online. */
+    isLive(socket) {
+        return socket.isLive;
+    }
 
     /**
      * Records a client ping. Returns true when the socket had gone stale and is live again, so the
@@ -105,41 +112,27 @@ export class ConnectionManager {
         return changed;
     }
 
-    // --- Timers and lifecycle --------------------------------------------------
+    // --- Timers and closing ------------------------------------------------------
 
     /**
-     * Runs a socket or timer handler, logging a throw instead of crashing the process. Does
-     * nothing once the connections are closed, so a late callback can't touch a closed hub.
-     */
-    runGuarded(label, handler) {
-        if (this.isClosed) {
-            return;
-        }
-
-        try {
-            handler();
-        } catch (error) {
-            this.logger.error(`Realtime ${label} failed`, error);
-        }
-    }
-
-    /**
-     * Starts the heartbeat and the periodic check, which calls `onPeriodicCheck()` under
-     * runGuarded. Neither timer keeps the process alive.
+     * Starts the heartbeat and the periodic check, which calls `onPeriodicCheck()` under the
+     * lifecycle's guard. Neither timer keeps the process alive.
      */
     startTimers(onPeriodicCheck) {
         const heartbeatTimer = setInterval(() => this.#heartbeat(), this.heartbeatIntervalMs);
         const livenessTimer = setInterval(() => {
-            this.runGuarded('periodic check', onPeriodicCheck);
+            this.lifecycle.runGuarded('periodic check', onPeriodicCheck);
         }, this.livenessCheckIntervalMs);
         heartbeatTimer.unref();
         livenessTimer.unref();
         this.timers = [heartbeatTimer, livenessTimer];
     }
 
-    /** Stops the timers and terminates every socket. Guarded callbacks are skipped from now on. */
+    /**
+     * Stops the timers and terminates every socket. The hub closes the lifecycle first, so the
+     * close events the terminations cause are skipped.
+     */
     close() {
-        this.isClosed = true;
         for (const timer of this.timers) {
             clearInterval(timer);
         }

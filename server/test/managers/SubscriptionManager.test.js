@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { beforeEach, describe, test } from 'node:test';
 import { SubscriptionManager } from '../../src/managers/SubscriptionManager.js';
-import { FakeSocket, createFakeConnections, createPlayerReader } from './fakeSockets.js';
+import { FakeSocket, createFakeConnections, createFakePlayers } from './fakeSockets.js';
 
 // SubscriptionManager over fake sockets and a fixed list of Players: Ann plays in rooms r1 and r2,
 // Bob in r1, and the admin in none.
@@ -26,7 +26,7 @@ describe('SubscriptionManager', () => {
         connections = createFakeConnections();
         subscriptions = new SubscriptionManager({
             connections,
-            players: createPlayerReader(players),
+            players: createFakePlayers(players),
             isAdmin: (identity) => identity.email === ADMIN,
         });
     });
@@ -166,6 +166,26 @@ describe('SubscriptionManager', () => {
             assert.deepEqual(bob.sent, []);
             assert.deepEqual(elsewhere.sent, []);
             assert.deepEqual(unsubscribed.sent, []);
+        });
+
+        test('passes text that is already serialised through as it is', () => {
+            const ann = subscribe(ANN, ['r1']);
+
+            subscriptions.sendToRoom('r1', '{"type":"presence"}');
+
+            assert.deepEqual(ann.sent, ['{"type":"presence"}']);
+        });
+    });
+
+    describe('roomsOf', () => {
+        test('is the rooms the socket named itself, empty before hello and for "*" alone', () => {
+            const ann = subscribe(ANN, ['r1', 'r2']);
+            const admin = subscribe(ADMIN, ['*']);
+            const fresh = connect(BOB);
+
+            assert.deepEqual([...subscriptions.roomsOf(ann)], ['r1', 'r2']);
+            assert.deepEqual([...subscriptions.roomsOf(admin)], []);
+            assert.deepEqual([...subscriptions.roomsOf(fresh)], []);
         });
     });
 });

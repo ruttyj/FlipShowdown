@@ -122,6 +122,11 @@ export class SubscriptionManager {
 
     // --- Membership and access ---------------------------------------------------
 
+    /** The rooms the socket named itself (a Set; empty before hello and for "*" alone). */
+    roomsOf(socket) {
+        return socket.rooms;
+    }
+
     /** Whether this (normalised) email has a Player in the room. */
     isMember(email, roomId) {
         return this.players.listByRoom(roomId).some((player) => player.email === email);
@@ -189,9 +194,12 @@ export class SubscriptionManager {
 
     // --- Sending -----------------------------------------------------------------
 
-    /** Sends `message` to every socket subscribed to the room, except `skipSocket`. */
+    /**
+     * Sends `message` (an object, or text already serialised) to every socket subscribed to the
+     * room, except `skipSocket`. An object is serialised once for the whole room.
+     */
     sendToRoom(roomId, message, skipSocket = null) {
-        const text = JSON.stringify(message);
+        const text = typeof message === 'string' ? message : JSON.stringify(message);
         for (const socket of this.connections.clients) {
             if (socket !== skipSocket && this.isSubscribedToRoom(socket, roomId)) {
                 this.connections.send(socket, text);

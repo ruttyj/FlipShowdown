@@ -26,13 +26,15 @@ function buildEventText(seq, entity, type, record, roomVersion) {
 export class EventPublisher {
     /**
      * `eventLog` is the store's event log (EventRepository: epoch, lastSeq, oldestSeq, appendAll,
-     * readAfter). `connections` is the ConnectionManager (clients, send, runGuarded) and
-     * `subscriptions` the SubscriptionManager, which decides who may receive an event.
+     * readAfter). `connections` is the ConnectionManager (clients, send), `subscriptions` the
+     * SubscriptionManager, which decides who may receive an event, and `lifecycle` the hub's
+     * Lifecycle, whose guard each send runs under.
      */
-    constructor({ eventLog, connections, subscriptions }) {
+    constructor({ eventLog, connections, subscriptions, lifecycle }) {
         this.eventLog = eventLog;
         this.connections = connections;
         this.subscriptions = subscriptions;
+        this.lifecycle = lifecycle;
     }
 
     /** The event log's id; a client holding another epoch has to resync. */
@@ -66,7 +68,7 @@ export class EventPublisher {
         const stored = this.eventLog.appendAll(entries);
 
         for (const [index, entry] of entries.entries()) {
-            this.connections.runGuarded(`${entry.entity} event`, () => {
+            this.lifecycle.runGuarded(`${entry.entity} event`, () => {
                 this.#sendEvent(entry.roomId, entry.entity, stored[index].text);
             });
         }
