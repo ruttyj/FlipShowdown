@@ -2,17 +2,15 @@ import express from 'express';
 import { ActionRegistry } from '../actions/ActionRegistry.js';
 import { createPlayerActions } from '../actions/players/index.js';
 import { CreateRoomAction, createRoomActions } from '../actions/rooms/index.js';
+import { createScoringActions } from '../actions/scoring/index.js';
 import { ActionError } from '../domain/errors.js';
 import { isPlainObject } from '../lib/query.js';
+import { PlayerService } from '../services/PlayerService.js';
 import { RoomService } from '../services/RoomService.js';
-import {
-    createPlayerService,
-    joinAction,
-    kickAction,
-    leaveAction,
-    makeHostAction,
-    reorderAction,
-} from './players.js';
+import { RoundService } from '../services/RoundService.js';
+import { ScoringService } from '../services/ScoringService.js';
+import { TotalsService } from '../services/TotalsService.js';
+import { joinAction, kickAction, leaveAction, makeHostAction, reorderAction } from './players.js';
 import { closeAction, deleteAction, setGameModeAction, startAction } from './rooms.js';
 import { createRoomActionRunner } from './roomTx.js';
 import {
@@ -29,8 +27,9 @@ import {
 
 // Routes for /api/rooms and /api/admin. Mounted after requireUser, so req.user is set.
 
-// The old action objects by name. The routes run the handler classes from actions/ where a group
-// has them; this map remains for the actions not moved yet and for the root test fixture.
+// Every action as the old `{ access, allowedStatuses, run(tx, body) }` object, by name, for the root
+// test fixture (tests/fixtures/serverRoom.js). Each is an adapter over the same handler class the
+// router runs.
 export const ACTIONS = {
     join: joinAction,
     leave: leaveAction,
@@ -54,38 +53,33 @@ export const ACTIONS = {
 
 // --- Handlers ------------------------------------------------------------
 
-/** An `{ access, allowedStatuses, run(tx, body) }` action as a handler for RoomActionRunner. */
-function toHandler(action) {
-    return {
-        access: action.access,
-        allowedStatuses: action.allowedStatuses,
-        handle(work, body) {
-            return action.run(work, body);
-        },
-    };
-}
-
-/** The game services, built once per router on the store's repositories. */
+/**
+ * The game services, built once per router. RoomService reads the store's repositories; the others
+ * are stateless and take the action's RoomUnitOfWork on every call.
+ */
 function createServices(repositories) {
+    const totalsService = new TotalsService();
+    const roundService = new RoundService();
     return {
         roomService: new RoomService({ roomRepository: repositories.rooms, playerRepository: repositories.players }),
-        playerService: createPlayerService(),
+        playerService: new PlayerService({ rounds: roundService, totals: totalsService }),
+        scoringService: new ScoringService({ roundService, totalsService }),
+        roundService,
+        totalsService,
     };
 }
 
-/** Every game action by name: the groups' handler classes, then the ACTIONS not moved yet. */
+/** Every game action's handler class, by name. */
 function createActionRegistry(services) {
-    const handlers = [...createRoomActions(services), ...createPlayerActions(services)];
+    const handlers = [
+        ...createRoomActions(services),
+        ...createPlayerActions(services),
+        ...createScoringActions(services),
+    ];
+
     const registry = new ActionRegistry();
     for (const handler of handlers) {
         registry.add(handler.name, handler);
-    }
-
-    for (const [name, action] of Object.entries(ACTIONS)) {
-        const isMoved = registry.get(name) !== null;
-        if (!isMoved) {
-            registry.add(name, toHandler(action));
-        }
     }
     return registry;
 }
