@@ -59,6 +59,7 @@ describe('RoomRepository', () => {
     });
 
     test('refuses to build without resolveUserId, since rooms reference their host', () => {
+        assert.throws(() => new RoomRepository(database), /game_rooms table has a user reference/);
         assert.throws(() => new RoomRepository(database, {}), /game_rooms table has a user reference/);
     });
 

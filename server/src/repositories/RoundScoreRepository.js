@@ -14,7 +14,7 @@ const SELECT_FOR_PLAYER = `
 export class RoundScoreRepository extends TableRepository {
     constructor(database) {
         super(database, ENTITY_TABLES.get(ROUND_SCORE));
-        this.selectForPlayer = database.prepare(SELECT_FOR_PLAYER);
+        this.statements.selectForPlayer = database.prepare(SELECT_FOR_PLAYER);
     }
 
     /** The room's scores in the order they were first saved (oldest first). */
@@ -30,7 +30,7 @@ export class RoundScoreRepository extends TableRepository {
      * the string '3' to round 3 and could match a null round to a legacy value kept in `extra`.
      */
     findForRound(roomId, playerId, roundNumber) {
-        const rows = this.selectForPlayer.all(roomId, playerId);
+        const rows = this.statements.selectForPlayer.all(roomId, playerId);
         for (const row of rows) {
             const score = decodeRow(this.spec, row);
             if (score.round_number === roundNumber) {

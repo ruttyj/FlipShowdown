@@ -1,4 +1,5 @@
 import { ENTITY_TABLES } from '../database/entityTables.js';
+import { CHAT_MESSAGE } from '../domain/entities.js';
 import { TableRepository } from './TableRepository.js';
 
 // The chat_messages table. The generic entities API uses the inherited CRUD (chat is created
@@ -7,7 +8,7 @@ import { TableRepository } from './TableRepository.js';
 export class ChatMessageRepository extends TableRepository {
     /** `database` is a Database. Chat messages reference no user, so there are no options. */
     constructor(database) {
-        super(database, ENTITY_TABLES.get('ChatMessage'));
+        super(database, ENTITY_TABLES.get(CHAT_MESSAGE));
     }
 
     /** The room's messages, oldest first. */

@@ -14,8 +14,8 @@ function byTurnOrder(left, right) {
 export class PlayerRepository extends TableRepository {
     /**
      * `resolveUserId(canonicalEmail)` returns the id of the user with that email, creating the
-     * user if needed (UserRepository#resolveId). Inserts and email changes call it, so run them
-     * inside a transaction when a user it creates must go away if the write fails.
+     * user if needed (UserRepository#resolveId). Inserts and email changes call it; they are
+     * atomic, so a user created for a write that fails goes away with it.
      */
     constructor(database, { resolveUserId } = {}) {
         super(database, ENTITY_TABLES.get(PLAYER), { resolveUserId });

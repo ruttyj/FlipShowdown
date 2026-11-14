@@ -6,6 +6,8 @@ import { currentTimestamp, generateId, stripServerFields } from './recordFields.
 // spec from entityTables.js. Records come back in the API shape decodeRow gives: every declared
 // field (null when never set), the fields kept in `extra`, the user reference's email, and the
 // server-managed fields. Writes the database refuses throw a StoreError (400 or 409).
+// insert and update each run in a transaction (a savepoint inside an outer one), so a user that
+// resolveUserId creates for a write goes away with it when the write fails.
 
 // --- Statements --------------------------------------------------------------
 // Column names in this SQL come from the spec, never from a request.
@@ -54,7 +56,8 @@ function prepareStatements(database, spec) {
 
 export class TableRepository {
     /**
-     * `database` is a Database (or anything with its `prepare`), `spec` one entry of ENTITY_TABLES.
+     * `database` is a Database (or anything with its `prepare` and `transaction`), `spec` one entry
+     * of ENTITY_TABLES.
      * A table with a user reference also needs `resolveUserId(canonicalEmail)`, which returns the id
      * of that user, creating the user if needed; writes call it to turn the email into a user id.
      */
@@ -63,6 +66,7 @@ export class TableRepository {
             throw new Error(`The ${spec.table} table has a user reference, so it needs resolveUserId`);
         }
 
+        this.database = database;
         this.spec = spec;
         this.resolveUserId = resolveUserId;
         this.statements = prepareStatements(database, spec);
@@ -103,10 +107,36 @@ export class TableRepository {
     }
 
     /**
-     * Inserts the record and returns it as a read gives it, so events match later GETs. Run it
-     * inside a transaction when a new user it creates must go away if the insert fails.
+     * Inserts the record and returns it as a read gives it, so events match later GETs. Atomic: a
+     * user created for it goes away if the insert fails.
      */
     insert(item, createdBy) {
+        return this.database.transaction(() => this.insertRow(item, createdBy));
+    }
+
+    /**
+     * Shallow-merges `changes` into the record and returns it as a read gives it, or null if there
+     * is no such record. A field set to undefined is cleared. Atomic like insert.
+     */
+    update(id, changes) {
+        return this.database.transaction(() => this.updateRow(id, changes));
+    }
+
+    /** Deletes the record (the foreign keys cascade to its children) and returns it as it was. */
+    delete(id) {
+        const record = this.get(id);
+        if (!record) {
+            return null;
+        }
+
+        this.statements.remove.run(id);
+        return record;
+    }
+
+    // --- Write helpers -------------------------------------------------------
+    // Not atomic on their own: insert and update run them inside a transaction.
+
+    insertRow(item, createdBy) {
         return translateConstraintErrors(() => {
             const id = generateId();
             const timestamp = currentTimestamp();
@@ -123,11 +153,7 @@ export class TableRepository {
         });
     }
 
-    /**
-     * Shallow-merges `changes` into the record and returns it as a read gives it, or null if there
-     * is no such record. A field set to undefined is cleared.
-     */
-    update(id, changes) {
+    updateRow(id, changes) {
         return translateConstraintErrors(() => {
             const row = this.statements.get.get(id);
             if (!row) {
@@ -138,17 +164,6 @@ export class TableRepository {
             this.statements.update.run({ ...values, id, updated_date: currentTimestamp() });
             return this.get(id);
         });
-    }
-
-    /** Deletes the record (the foreign keys cascade to its children) and returns it as it was. */
-    delete(id) {
-        const record = this.get(id);
-        if (!record) {
-            return null;
-        }
-
-        this.statements.remove.run(id);
-        return record;
     }
 
     /**

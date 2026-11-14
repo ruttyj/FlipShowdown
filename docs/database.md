@@ -15,7 +15,7 @@ the API side is in [backend-contract.md](backend-contract.md#entities).
 | Foreign keys | `ON` for the store's connection; `OFF` only while migrations run |
 | Schema | Numbered migrations, recorded in `schema_migrations` (see [Migrations](#migrations)) |
 | Store API | `openStore()` in `server/src/database/db.js` keeps the record-shaped API the routes always had (`listRecords`, `findRecords`, `createRecords`, ...), over typed tables for the four game entities and a JSON `records` table for everything else |
-| Code | In `server/src/database/`: `Database.js` (connection, opening, transactions), `db.js` (store), `entityTables.js` (table specs, row codec, `toStoreError`), `migrate.js` + `migrations/` (schema), `backup.js` (copies), `eventLog.js` (`events`/`meta`). Elsewhere: `domain/errors.js` (`StoreError`), `lib/email.js` (canonical emails), `repositories/TableRepository.js` (CRUD on one typed table), `repositories/recordFields.js` (server-managed fields, ids, timestamps), `managers/staleRooms.js` (sweep) |
+| Code | In `server/src/database/`: `Database.js` (connection, opening, transactions), `db.js` (store), `entityTables.js` (table specs, row codec, `toStoreError`), `migrate.js` + `migrations/` (schema), `backup.js` (copies), `eventLog.js` (`events`/`meta`). Elsewhere: `domain/errors.js` (`StoreError`), `lib/email.js` (canonical emails), `repositories/` (one class per table, see [Repositories](#repositories); `recordFields.js` holds the server-managed fields, ids and timestamps), `managers/staleRooms.js` (sweep) |
 
 ## Diagrams
 
@@ -248,6 +248,72 @@ classDiagram
     migrate_js --> migrations_index_js : applies
     migrate_js --> backup_js : snapshotDatabase
     Database --> backup_js : backupsDir
+```
+
+### Repositories
+
+One class per table in `server/src/repositories/`, each taking a `Database`. Only
+`TableRepository` is wired into the store so far; the rest are being moved over from `db.js` and
+`eventLog.js`. `TableRepository#insert` and `#update` each run in a transaction (a savepoint
+inside an outer one), so a user that `resolveUserId` creates for a failed write is rolled back.
+
+```mermaid
+classDiagram
+    class TableRepository {
+        +get(id)
+        +list()
+        +find(field, value)
+        +insert(item, createdBy)
+        +update(id, changes)
+        +delete(id)
+    }
+    class RoomRepository {
+        +findByCode(code)
+        +listIdle(cutoffMs)
+    }
+    class PlayerRepository {
+        +listByRoom(roomId)
+        +listByRoomInTurnOrder(roomId)
+        +listByUserEmail(email)
+    }
+    class RoundScoreRepository {
+        +listByRoom(roomId)
+        +findForRound(roomId, playerId, roundNumber)
+    }
+    class ChatMessageRepository {
+        +listByRoom(roomId)
+    }
+    class UserRepository {
+        +findByEmail(email)
+        +upsert(email, fullName)
+        +setName(email, fullName)
+        +resolveId(email)
+    }
+    class RecordRepository {
+        +list(entity)
+        +find(entity, field, value)
+        +findByEmail(entity, email)
+        +get(entity, id)
+        +insert(entity, item, createdBy)
+        +update(entity, id, changes)
+        +delete(entity, id)
+    }
+    class EventRepository {
+        +epoch
+        +lastSeq
+        +oldestSeq()
+        +append(entry)
+        +appendAll(entries)
+        +readAfter(afterSeq, roomIds)
+    }
+    TableRepository <|-- RoomRepository
+    TableRepository <|-- PlayerRepository
+    TableRepository <|-- RoundScoreRepository
+    TableRepository <|-- ChatMessageRepository
+    RoomRepository --> UserRepository : resolveId for host_email
+    PlayerRepository --> UserRepository : resolveId for email
+    note for RecordRepository "Any other entity, as JSON rows in records"
+    note for EventRepository "events and meta (the realtime log)"
 ```
 
 ### Server start

@@ -6,6 +6,14 @@ import { currentTimestamp, generateId } from './recordFields.js';
 // { id, email, full_name, created_date, updated_date }. A write the CHECK refuses (an empty email,
 // say) throws the SqliteError unchanged, as the store always has.
 
+/** Inserts a user with this canonical email and returns the new id. */
+function insertUser(statements, storedEmail, fullName) {
+    const id = generateId();
+    const timestamp = currentTimestamp();
+    statements.insert.run(id, storedEmail, fullName, timestamp, timestamp);
+    return id;
+}
+
 export class UserRepository {
     /** `database` is a Database (or anything with its `prepare`). */
     constructor(database) {
@@ -36,7 +44,7 @@ export class UserRepository {
         const existing = this.statements.find.get(storedEmail);
 
         if (!existing) {
-            this.insertUser(storedEmail, fullName || null);
+            insertUser(this.statements, storedEmail, fullName || null);
         } else if (fullName && fullName !== existing.full_name) {
             this.statements.updateName.run(fullName, currentTimestamp(), storedEmail);
         }
@@ -61,14 +69,6 @@ export class UserRepository {
         if (existing) {
             return existing.id;
         }
-        return this.insertUser(storedEmail, null);
-    }
-
-    /** Inserts a user with this canonical email and returns the new id. */
-    insertUser(storedEmail, fullName) {
-        const id = generateId();
-        const timestamp = currentTimestamp();
-        this.statements.insert.run(id, storedEmail, fullName, timestamp, timestamp);
-        return id;
+        return insertUser(this.statements, storedEmail, null);
     }
 }

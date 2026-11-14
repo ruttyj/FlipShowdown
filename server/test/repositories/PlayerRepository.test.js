@@ -112,6 +112,10 @@ describe('PlayerRepository', () => {
         return players.insert({ room_id: roomId, email, name: email, ...fields }, CREATOR);
     }
 
+    function findUserRow(email) {
+        return database.prepare('SELECT * FROM users WHERE email = ?').get(email);
+    }
+
     // --- get, insert, update, delete -------------------------------------------
 
     test('insert stores a player with its email canonical, and get reads it back', () => {
@@ -169,6 +173,27 @@ describe('PlayerRepository', () => {
         assert.equal(players.get(player.id), null);
         assert.deepEqual(scores.listByRoom(room.id), []);
         assert.equal(players.delete(player.id), null);
+    });
+
+    // --- Atomic writes -----------------------------------------------------------
+
+    test('insert into an unknown room fails and creates no user', () => {
+        assertStoreError(() => insertPlayer('no-such-room', 'new@example.com'), 400, 'invalid_record');
+
+        assert.equal(findUserRow('new@example.com'), undefined);
+    });
+
+    test('update into an unknown room fails and creates no user for the new email', () => {
+        const player = insertPlayer(room.id, 'ann@example.com');
+
+        assertStoreError(
+            () => players.update(player.id, { room_id: 'no-such-room', email: 'new@example.com' }),
+            400,
+            'invalid_record',
+        );
+
+        assert.equal(findUserRow('new@example.com'), undefined);
+        assert.equal(players.get(player.id).email, 'ann@example.com');
     });
 
     // --- Named reads -------------------------------------------------------------
