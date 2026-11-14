@@ -17,9 +17,4 @@ export class ActionRegistry {
     get(name) {
         return this.#handlers.get(name) ?? null;
     }
-
-    /** Every registered name, in the order they were added. */
-    names() {
-        return [...this.#handlers.keys()];
-    }
 }

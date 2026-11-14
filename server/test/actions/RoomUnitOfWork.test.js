@@ -97,6 +97,11 @@ describe('RoomUnitOfWork', () => {
 
         assert.throws(() => work.createChild('GameRoom', { code: 'NOPE' }), /Not a room child entity: GameRoom/);
         assert.throws(() => work.listRoomChildren('Note'), /Not a room child entity: Note/);
+        // Refused even when no field would change, so the check can't depend on the data.
+        assert.throws(() => work.updateChild('GameRoom', work.room, { status: work.room.status }), /Not a room child entity: GameRoom/);
+        assert.throws(() => work.updateChild('GameRoom', work.room, { status: 'closed' }), /Not a room child entity: GameRoom/);
+        assert.throws(() => work.deleteChild('GameRoom', work.room), /Not a room child entity: GameRoom/);
+        assert.deepEqual(work.events, []);
     });
 
     // --- Child writes and their events -----------------------------------

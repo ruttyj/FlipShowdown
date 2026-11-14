@@ -10,13 +10,18 @@ import { GUEST, HOST, OUTSIDER, openTempStore, seedRoom } from './roomFixture.js
 // RoomActionRunner on a real store with a recording hub: the checks it runs before the handler,
 // the response and error mapping, the rollback, and publishing only after commit.
 
-/** A hub that records what it is told, in order. */
-function createRecordingHub() {
+/**
+ * A hub that records what it is told, in order. `database` is the store's Database: each
+ * publishAll call also records whether a transaction was still open, so a test can tell
+ * publishing after commit from publishing inside the transaction.
+ */
+function createRecordingHub(database) {
     const calls = [];
     return {
         calls,
         publishAll(events, options) {
-            calls.push({ method: 'publishAll', events, options });
+            const inTransaction = database.connection.inTransaction;
+            calls.push({ method: 'publishAll', events, options, inTransaction });
         },
         roomMembershipChanged(roomId) {
             calls.push({ method: 'roomMembershipChanged', roomId });
@@ -54,7 +59,7 @@ describe('RoomActionRunner', () => {
         temp = openTempStore();
         store = temp.store;
         seeded = seedRoom(store);
-        hub = createRecordingHub();
+        hub = createRecordingHub(store.database);
         logger = createRecordingLogger();
         runner = new RoomActionRunner({
             database: store.database,
@@ -114,6 +119,7 @@ describe('RoomActionRunner', () => {
         assert.equal(hub.calls.length, 1);
         const [published] = hub.calls;
         assert.equal(published.method, 'publishAll');
+        assert.equal(published.inTransaction, false);
         assert.deepEqual(published.options, { roomVersion: result.body.room.version });
         assert.deepEqual(
             published.events.map((event) => `${event.entity} ${event.type}`),
@@ -275,7 +281,7 @@ describe('RoomActionRunner', () => {
     });
 
     test('asks for the hub at publish time, so a hub set after the runner was built is used', () => {
-        const laterHub = createRecordingHub();
+        const laterHub = createRecordingHub(store.database);
         hub = laterHub;
 
         runOnRoom(HOST, handlerFor('host', null, (work) => {

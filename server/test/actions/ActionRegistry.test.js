@@ -24,14 +24,6 @@ describe('ActionRegistry', () => {
         assert.equal(registry.get('__proto__'), null);
     });
 
-    test('lists the names in the order they were added', () => {
-        const registry = new ActionRegistry();
-        registry.add('start', handler('host'));
-        registry.add('join', handler('signed_in'));
-
-        assert.deepEqual(registry.names(), ['start', 'join']);
-    });
-
     test('refuses a second handler for a name already taken', () => {
         const registry = new ActionRegistry();
         const first = handler('host');

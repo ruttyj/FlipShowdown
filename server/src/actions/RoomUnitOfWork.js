@@ -56,9 +56,9 @@ export class RoomUnitOfWork {
         this.store = store;
         this.user = user;
         this.isAdmin = isAdmin;
-        // The room acted on: set by loadRoom or insertRoom, and kept current by every room write.
+        // Services read `room` but change it only through the methods below. The room acted on: set by loadRoom or insertRoom, and kept current by every room write.
         this.room = null;
-        // What to publish after commit, in order: { entity, type, record }, one per record.
+        // Runner only (services must not touch it). What to publish after commit, in order: { entity, type, record }, one per record.
         this.events = [];
 
         this.#rooms = repositories.rooms;
@@ -68,11 +68,6 @@ export class RoomUnitOfWork {
             [ROUND_SCORE, repositories.roundScores],
             [CHAT_MESSAGE, repositories.chatMessages],
         ]);
-    }
-
-    /** The room's version, for the published events. */
-    get roomVersion() {
-        return this.room.version;
     }
 
     // --- Events ----------------------------------------------------------
@@ -125,12 +120,14 @@ export class RoomUnitOfWork {
 
     /** Writes only the fields that differ. Returns the current record either way. */
     updateChild(entity, record, changes) {
+        // Looked up first, so a wrong entity throws even when nothing would change.
+        const repository = this.#childRepository(entity);
         const diff = diffFields(record, changes);
         if (!hasFields(diff)) {
             return record;
         }
 
-        const updated = this.#childRepository(entity).update(record.id, diff);
+        const updated = repository.update(record.id, diff);
         this.#changed = true;
         this.#queueEvent(entity, 'update', updated);
         return updated;
@@ -175,19 +172,6 @@ export class RoomUnitOfWork {
     }
 
     // --- The room record -------------------------------------------------
-
-    /** Makes the room with this id the action's room, or throws a 404 `room_not_found`. */
-    loadRoom(roomId) {
-        // Read through the store facade rather than RoomRepository: staleRooms.test makes one
-        // room fail to load by replacing store.getRecord. Move to this.#rooms.get when the tests
-        // stop using the facade (P6.1).
-        const room = this.store.getRecord(ROOM, roomId);
-        if (!room) {
-            throw new ActionError(404, 'room_not_found', 'Room not found');
-        }
-        this.room = room;
-        this.#initialHostEmail = room.host_email;
-    }
 
     /**
      * Inserts a new GameRoom and makes it the action's room. It is published as a `create` event
@@ -240,14 +224,6 @@ export class RoomUnitOfWork {
         this.events.push({ entity: ROOM, type: 'delete', record: deleted });
     }
 
-    /** Ends the action's writes: flushes the room if anything changed and it still exists. */
-    finish() {
-        if (this.#roomDeleted || !this.#changed) {
-            return;
-        }
-        this.flushRoom();
-    }
-
     // --- Status ----------------------------------------------------------
 
     /** allowedStatuses: list of statuses, or null for any. Throws a 409 `wrong_status` otherwise. */
@@ -260,7 +236,35 @@ export class RoomUnitOfWork {
         });
     }
 
-    // --- What changed, for the realtime refresh after commit ---------------
+    // --- Runner only ------------------------------------------------------
+    // RoomActionRunner calls these around the handler. Services must not: the runner loads the
+    // room before the handler, finishes after it and publishes what changed after commit.
+
+    /** Makes the room with this id the action's room, or throws a 404 `room_not_found`. */
+    loadRoom(roomId) {
+        // Read through the store facade rather than RoomRepository: staleRooms.test makes one
+        // room fail to load by replacing store.getRecord. Move to this.#rooms.get when the tests
+        // stop using the facade (P6.1).
+        const room = this.store.getRecord(ROOM, roomId);
+        if (!room) {
+            throw new ActionError(404, 'room_not_found', 'Room not found');
+        }
+        this.room = room;
+        this.#initialHostEmail = room.host_email;
+    }
+
+    /** Ends the action's writes: flushes the room if anything changed and it still exists. */
+    finish() {
+        if (this.#roomDeleted || !this.#changed) {
+            return;
+        }
+        this.flushRoom();
+    }
+
+    /** The room's version, for the published events. */
+    get roomVersion() {
+        return this.room.version;
+    }
 
     /** Whether a Player was created or deleted (a join, leave or kick). */
     hasMembershipChange() {
