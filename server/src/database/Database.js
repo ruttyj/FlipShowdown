@@ -15,7 +15,7 @@ function prepareConnection(connection, dataDir) {
     connection.pragma('synchronous = NORMAL');
     // A database that holds data is copied to DATA_DIR/backups before any pending migration runs.
     runMigrations(connection, MIGRATIONS, { snapshotDir: backupsDir(dataDir) });
-    // Set last: migrations turn foreign keys off while they run.
+    // Enforced from here on; a new connection starts with foreign keys off.
     connection.pragma('foreign_keys = ON');
 }
 

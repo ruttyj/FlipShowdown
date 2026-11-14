@@ -292,7 +292,7 @@ describe('TableRepository on the game tables', () => {
         assertStoreError(() => messages.insert({ room_id: 'missing', message: 'hi' }, CREATOR), 400, 'invalid_record');
     });
 
-    test('a value of the wrong type is a 400 and writes nothing', () => {
+    test('a value of the wrong type is a 400', () => {
         assertStoreError(() => rooms.insert({ max_score: 'lots' }, CREATOR), 400, 'invalid_record');
 
         assert.deepEqual(rooms.list(), []);

@@ -15,7 +15,7 @@ the API side is in [backend-contract.md](backend-contract.md#entities).
 | Foreign keys | `ON` for the store's connection; `OFF` only while migrations run |
 | Schema | Numbered migrations, recorded in `schema_migrations` (see [Migrations](#migrations)) |
 | Store API | `openStore()` in `server/src/database/db.js` keeps the record-shaped API the routes always had (`listRecords`, `findRecords`, `createRecords`, ...), over typed tables for the four game entities and a JSON `records` table for everything else |
-| Code | In `server/src/database/`: `Database.js` (connection, opening, transactions), `db.js` (store), `entityTables.js` (table specs, row codec, `toStoreError`), `migrate.js` + `migrations/` (schema), `backup.js` (copies), `eventLog.js` (`events`/`meta`). Elsewhere: `domain/errors.js` (`StoreError`), `lib/email.js` (canonical emails), `repositories/TableRepository.js` (CRUD on one typed table), `managers/staleRooms.js` (sweep) |
+| Code | In `server/src/database/`: `Database.js` (connection, opening, transactions), `db.js` (store), `entityTables.js` (table specs, row codec, `toStoreError`), `migrate.js` + `migrations/` (schema), `backup.js` (copies), `eventLog.js` (`events`/`meta`). Elsewhere: `domain/errors.js` (`StoreError`), `lib/email.js` (canonical emails), `repositories/TableRepository.js` (CRUD on one typed table), `repositories/recordFields.js` (server-managed fields, ids, timestamps), `managers/staleRooms.js` (sweep) |
 
 ## Diagrams
 

@@ -1,11 +1,6 @@
 import { canonicalEmail } from '../lib/email.js';
 import { TableRepository } from '../repositories/TableRepository.js';
-import {
-    SERVER_MANAGED_FIELDS,
-    currentTimestamp,
-    generateId,
-    stripServerFields,
-} from '../repositories/recordFields.js';
+import { currentTimestamp, generateId, stripServerFields } from '../repositories/recordFields.js';
 import { Database } from './Database.js';
 import { ENTITY_TABLES, translateConstraintErrors } from './entityTables.js';
 import { createEventLog } from './eventLog.js';
@@ -13,9 +8,6 @@ import { createEventLog } from './eventLog.js';
 // The store: the record-shaped API the routes and tests use, over Database and one
 // TableRepository per game table. Users, the generic `records` table and the event log are still
 // handled here.
-
-// Kept as exports of this module, where they used to be defined.
-export { SERVER_MANAGED_FIELDS, generateId, stripServerFields };
 
 // --- Users ---------------------------------------------------------------
 
@@ -206,6 +198,15 @@ export function openStore(dataDir, { eventLogLimit } = {}) {
         return tableBackends.get(entity) ?? genericBackend(recordStatements, entity);
     }
 
+    // TableRepository already turns constraint errors into StoreErrors, so only writes to the
+    // generic `records` backend need converting here.
+    function translateGenericErrors(entity, write) {
+        if (tableBackends.has(entity)) {
+            return write();
+        }
+        return translateConstraintErrors(write);
+    }
+
     // The whole batch is all-or-nothing, users created for its players included.
     function insertMany(entity, items, createdBy) {
         return database.transaction(() => {
@@ -252,11 +253,11 @@ export function openStore(dataDir, { eventLogLimit } = {}) {
         },
 
         createRecords(entity, items, createdBy) {
-            return translateConstraintErrors(() => insertMany(entity, items, createdBy));
+            return translateGenericErrors(entity, () => insertMany(entity, items, createdBy));
         },
 
         updateRecord(entity, id, changes) {
-            return translateConstraintErrors(() => updateOne(entity, id, changes));
+            return translateGenericErrors(entity, () => updateOne(entity, id, changes));
         },
 
         /** Deletes and returns the record as it was, or null if it didn't exist. */
