@@ -1,5 +1,9 @@
 import { OPEN_STATUSES, PLAYER, ROUND_SCORE } from '../domain/entities.js';
 import { ActionError, badRequest } from '../domain/errors.js';
+import { isHostPlayer } from '../domain/players.js';
+
+// Re-exported for the tests that import it from here; it lives in domain/players.js.
+export { isHostPlayer };
 
 // The player rules: joining, leaving, kicking, hosting, turn order and the seats the room's
 // players sit in. Stateless: every method takes the action's RoomUnitOfWork (`work`, with its
@@ -46,12 +50,6 @@ export function nextPlayerAfter(orderedPlayers, player) {
  */
 export function isTurnPassed(room) {
     return room.turn_passed_round === room.current_round;
-}
-
-/** Whether `player` is the host of `room` (a GameRoom record). */
-export function isHostPlayer(room, player) {
-    // Older rooms have no host_player_id, so the email decides there.
-    return room.host_player_id === player.id || room.host_email === player.email;
 }
 
 /** True when `playerIds` names every player exactly once. */

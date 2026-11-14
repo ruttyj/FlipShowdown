@@ -1,4 +1,4 @@
-import { isHostPlayer } from '../services/PlayerService.js';
+import { isHostPlayer } from '../domain/players.js';
 
 // Hold-to-vote topics (see managers/votes.js), by topic name, as the realtime hub takes them. Each
 // topic has:

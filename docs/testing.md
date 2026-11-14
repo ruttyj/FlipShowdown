@@ -251,6 +251,10 @@ code changes on every run.
 - The server holds an `entry-status` within 1 s of the same player's last one, on the injected
   `realtimeNow` clock, so a test sending two in a row has to advance `clock.time` between them. The
   held state is then applied by a real timer, which ignores that clock, so a test of it really waits.
+- Some server tests wrap `store` facade methods on a running server: `entryStatus.test.js` counts
+  `store.findRecords` calls and `staleRooms.test.js` makes `store.getRecord` throw. The realtime hub's
+  Player reads and the action runner's room load still go through the facade for that reason. Moving
+  them to `store.repositories` keeps those tests green but makes them check nothing.
 - `useGameRoom`'s shared dialogs live in `RoomDialogs`, mounted by `GameRoom`, so a screen test sees no
   confirm dialog. Test a prompt against the page (`GameRoom.test.jsx`) or through `dialogs.confirmation`.
 - Saving a draft doesn't re-render `useScoreEntry`, so anything read from storage at render can be

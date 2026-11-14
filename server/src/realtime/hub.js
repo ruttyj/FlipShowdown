@@ -1,22 +1,29 @@
-import { WebSocketServer, WebSocket } from 'ws';
+import { WebSocketServer } from 'ws';
 import {
     CLIENT_MESSAGE,
-    LIVE_WINDOW_MS,
     REALTIME_PATH,
     SERVER_MESSAGE,
     VOTE_HOLD_MS,
 } from '../../../shared/realtimeProtocol.js';
+import { Clock } from '../domain/clock.js';
+import { isHostPlayer } from '../domain/players.js';
+import {
+    ConnectionManager,
+    HEARTBEAT_INTERVAL_MS,
+    LIVENESS_CHECK_INTERVAL_MS,
+} from '../managers/ConnectionManager.js';
 import { createEntryStatusTracker, isEntryState } from '../managers/entryStatus.js';
+import { EventPublisher } from '../managers/EventPublisher.js';
 import { buildRoomStats } from '../managers/roomStats.js';
+import { SubscriptionManager } from '../managers/SubscriptionManager.js';
 import { createVoteTracker, HOST_OFFLINE_GRACE_MS } from '../managers/votes.js';
-import { isHostPlayer } from '../services/PlayerService.js';
 
-// WebSocket ping frames, only for terminating dead sockets. Their pongs don't
-// count as liveness: the browser answers them even for a hidden tab.
-const HEARTBEAT_INTERVAL_MS = 30_000;
+// The realtime hub: the WebSocket endpoint and the composition of the realtime managers.
+// Sockets, liveness and timers are the ConnectionManager's; who listens to which room is the
+// SubscriptionManager's; the event log, fan-out and replay are the EventPublisher's. Presence,
+// votes and entry status are still here.
+
 const MAX_CLIENT_MESSAGE_BYTES = 16 * 1024;
-const LIVENESS_CHECK_INTERVAL_MS = 5_000;
-const ALL_ROOMS = '*';
 
 // --- Upgrade handling ----------------------------------------------------
 
@@ -51,141 +58,21 @@ function handleUpgradeSocketError(logger, socket, error) {
     socket.destroy();
 }
 
-function send(socket, message) {
-    if (socket.readyState === WebSocket.OPEN) {
-        socket.send(typeof message === 'string' ? message : JSON.stringify(message));
-    }
-}
-
-// --- Room membership -----------------------------------------------------
-// A Player's email comes from the users table, so it is canonical: the same
-// spelling auth gives socket identities (email.js). Plain === compares them.
-
-function playersInRoom(store, roomId) {
-    return store.findRecords('Player', 'room_id', roomId);
-}
-
-/** Ids of the rooms where this (normalised) email has a Player. */
-function roomIdsOfUser(store, email) {
-    const roomIds = new Set();
-    for (const player of store.findRecordsByEmail('Player', email)) {
-        if (typeof player.room_id === 'string') {
-            roomIds.add(player.room_id);
-        }
-    }
-    return roomIds;
-}
-
-function isMember(store, email, roomId) {
-    return playersInRoom(store, roomId).some((player) => player.email === email);
-}
+// --- Player reads ----------------------------------------------------------
 
 /**
- * Turns a client's requested room list into { rooms: Set, allRooms }. Rooms the
- * user isn't a member of are dropped, and "*" only counts for admins.
+ * Player reads shaped like PlayerRepository's (listByRoom, listByUserEmail). They go through the
+ * store facade at call time, not store.repositories.players, because entryStatus.test counts
+ * database lookups by wrapping store.findRecords.
  */
-function resolveSubscription(context, identity, requested) {
-    const subscription = { rooms: new Set(), allRooms: false };
-    if (!Array.isArray(requested)) {
-        return subscription;
-    }
-
-    const memberRooms = roomIdsOfUser(context.store, identity.email);
-    for (const roomId of requested) {
-        if (roomId === ALL_ROOMS) {
-            subscription.allRooms = context.isAdmin(identity);
-            continue;
-        }
-        if (memberRooms.has(roomId)) {
-            subscription.rooms.add(roomId);
-        }
-    }
-    return subscription;
-}
-
-/**
- * Replaces the socket's subscription. Returns the rooms that were added and
- * every room whose presence may have changed (old and new).
- */
-function applySubscription(socket, subscription) {
-    const previousRooms = socket.rooms;
-    const added = [];
-    for (const roomId of subscription.rooms) {
-        if (!previousRooms.has(roomId)) {
-            added.push(roomId);
-        }
-    }
-
-    const removed = [];
-    for (const roomId of previousRooms) {
-        if (!subscription.rooms.has(roomId)) {
-            removed.push(roomId);
-        }
-    }
-
-    socket.rooms = subscription.rooms;
-    socket.allRooms = subscription.allRooms;
-    socket.isSubscribed = true;
-
-    const affected = new Set([...previousRooms, ...subscription.rooms]);
-    return { added, removed, affected };
-}
-
-// --- Event routing -------------------------------------------------------
-
-/** A GameRoom belongs to itself; everything else to its room_id. Null when neither. */
-function eventRoomId(entity, record) {
-    const roomId = entity === 'GameRoom' ? record.id : record.room_id;
-    if (typeof roomId !== 'string' || roomId === '') {
-        return null;
-    }
-    return roomId;
-}
-
-/**
- * Whether an event for `roomId` reaches this socket. Explicit room subscriptions
- * were membership-checked, so they may also see chat. Admin "*" sockets see
- * everything except chat for rooms they aren't in.
- */
-function canReceive(context, socket, roomId, entity) {
-    if (!socket.isSubscribed) {
-        return false;
-    }
-    if (socket.rooms.has(roomId)) {
-        return true;
-    }
-    if (!socket.allRooms) {
-        return false;
-    }
-    if (entity === 'ChatMessage') {
-        return isMember(context.store, socket.identity.email, roomId);
-    }
-    return true;
-}
-
-function sendEvent(context, roomId, entity, text) {
-    for (const socket of context.wss.clients) {
-        if (canReceive(context, socket, roomId, entity)) {
-            send(socket, text);
-        }
-    }
-}
-
-function buildEventText(seq, entity, type, record, roomVersion) {
-    return JSON.stringify({
-        type: SERVER_MESSAGE.EVENT,
-        seq,
-        entity,
-        event: { type, id: record.id, data: record, timestamp: new Date().toISOString() },
-        room_version: roomVersion ?? null,
-    });
+function createPlayerReader(store) {
+    return {
+        listByRoom: (roomId) => store.findRecords('Player', 'room_id', roomId),
+        listByUserEmail: (email) => store.findRecordsByEmail('Player', email),
+    };
 }
 
 // --- Presence ------------------------------------------------------------
-
-function isSubscribedToRoom(socket, roomId) {
-    return socket.isSubscribed && (socket.rooms.has(roomId) || socket.allRooms);
-}
 
 /**
  * Emails with a live socket explicitly subscribed to the room. Admin "*"
@@ -204,7 +91,7 @@ function onlineEmails(context, roomId) {
 function buildPresencePlayers(context, roomId) {
     const online = onlineEmails(context, roomId);
     const players = [];
-    for (const player of playersInRoom(context.store, roomId)) {
+    for (const player of context.players.listByRoom(roomId)) {
         players.push({
             player_id: player.id,
             online: online.has(player.email),
@@ -227,34 +114,11 @@ function recordWentOffline(context, previousPlayers, players) {
         }
     }
 
-    const timestamp = new Date(context.now()).toISOString();
+    const timestamp = new Date(context.clock.now()).toISOString();
     for (const player of players) {
         if (!player.online && wasOnline.has(player.player_id)) {
             context.store.updateRecord('Player', player.player_id, { last_seen: timestamp });
             player.last_seen = timestamp;
-        }
-    }
-}
-
-/**
- * Whether any socket explicitly subscribes to the room. Admin "*" sockets
- * don't count: otherwise a deleted room's vote and presence state would be
- * kept for as long as an admin stays connected.
- */
-function hasSubscribers(context, roomId) {
-    for (const socket of context.wss.clients) {
-        if (socket.isSubscribed && socket.rooms.has(roomId)) {
-            return true;
-        }
-    }
-    return false;
-}
-
-function sendToRoom(context, roomId, message, skipSocket = null) {
-    const text = JSON.stringify(message);
-    for (const socket of context.wss.clients) {
-        if (socket !== skipSocket && isSubscribedToRoom(socket, roomId)) {
-            send(socket, text);
         }
     }
 }
@@ -268,7 +132,7 @@ function buildVoteMessage(context, roomId, topic) {
 /** Sends the `vote` state for each changed { roomId, topic } to its room. */
 function broadcastVoteChanges(context, changes, skipSocket = null) {
     for (const { roomId, topic } of changes) {
-        sendToRoom(context, roomId, buildVoteMessage(context, roomId, topic), skipSocket);
+        context.subscriptions.sendToRoom(roomId, buildVoteMessage(context, roomId, topic), skipSocket);
     }
 }
 
@@ -297,7 +161,7 @@ function hostOfflineSinceOf(presencePlayers, hostPlayerId) {
  * a pending vote even when the online players stay the same.
  */
 function refreshVotes(context, roomId, presencePlayers, { force = false, skipSocket = null } = {}) {
-    if (!hasSubscribers(context, roomId)) {
+    if (!context.subscriptions.hasSubscribers(roomId)) {
         context.votes.forgetRoom(roomId);
         return;
     }
@@ -309,7 +173,7 @@ function refreshVotes(context, roomId, presencePlayers, { force = false, skipSoc
         }
     }
     const room = context.store.getRecord('GameRoom', roomId);
-    const hostPlayerId = hostPlayerIdOf(room, playersInRoom(context.store, roomId));
+    const hostPlayerId = hostPlayerIdOf(room, context.players.listByRoom(roomId));
     const hostOfflineSince = hostOfflineSinceOf(presencePlayers, hostPlayerId);
 
     const electorate = { onlinePlayerIds, hostPlayerId, hostOfflineSince };
@@ -334,7 +198,7 @@ function refreshPresence(context, roomId, { force = false, skipSocket = null } =
     const hasChanged = text !== previous?.text;
 
     // Nobody is watching the room any more, so there is no transition to track.
-    if (hasSubscribers(context, roomId)) {
+    if (context.subscriptions.hasSubscribers(roomId)) {
         context.presence.set(roomId, { players, text });
     } else {
         context.presence.delete(roomId);
@@ -342,8 +206,8 @@ function refreshPresence(context, roomId, { force = false, skipSocket = null } =
 
     if (hasChanged || force) {
         for (const socket of context.wss.clients) {
-            if (socket !== skipSocket && isSubscribedToRoom(socket, roomId)) {
-                send(socket, text);
+            if (socket !== skipSocket && context.subscriptions.isSubscribedToRoom(socket, roomId)) {
+                context.connections.send(socket, text);
             }
         }
         // Who is online is what the launcher counts (X66).
@@ -365,7 +229,7 @@ function buildEntryStatusMessage(context, roomId) {
 }
 
 function broadcastEntryStatus(context, roomId) {
-    sendToRoom(context, roomId, buildEntryStatusMessage(context, roomId));
+    context.subscriptions.sendToRoom(roomId, buildEntryStatusMessage(context, roomId));
 }
 
 /**
@@ -391,7 +255,7 @@ function reconcileEntries(context, roomId) {
     }
 
     const room = context.store.getRecord('GameRoom', roomId);
-    const players = playersInRoom(context.store, roomId);
+    const players = context.players.listByRoom(roomId);
     const hasChanged = context.entries.retain(roomId, (entry) => {
         const player = players.find((candidate) => candidate.id === entry.player_id);
         return canEnterCards(room, player, entry.round);
@@ -415,39 +279,51 @@ function sendRoomStates(context, socket, roomIds) {
     for (const roomId of roomIds) {
         const presence = context.presence.get(roomId);
         if (presence) {
-            send(socket, presence.text);
+            context.connections.send(socket, presence.text);
         }
         for (const topic of Object.keys(context.voteTopics)) {
-            send(socket, buildVoteMessage(context, roomId, topic));
+            context.connections.send(socket, buildVoteMessage(context, roomId, topic));
         }
         const entryStatus = buildEntryStatusMessage(context, roomId);
         if (entryStatus.entries.length > 0) {
-            send(socket, entryStatus);
+            context.connections.send(socket, entryStatus);
         }
     }
 }
 
-/** Records a client ping. A socket that had gone stale is live again. */
-function markHeard(context, socket) {
-    socket.lastHeardAt = context.now();
-    if (socket.isLive) {
-        return;
+// --- Publishing ------------------------------------------------------------
+
+/**
+ * What follows a publish, once its events have gone out: the published rooms' entry status is
+ * reconciled (so a client hears "Sam submitted" before the banner drops), and a GameRoom change
+ * marks the launcher's stats as changed, since a room's status, round and max score show in its
+ * row (X66). `published` is EventPublisher#publishAll's result.
+ */
+function afterPublish(context, published) {
+    const roomIds = new Set(published.map((entry) => entry.roomId));
+    for (const roomId of roomIds) {
+        context.connections.runGuarded('entry status', () => reconcileEntries(context, roomId));
     }
 
-    socket.isLive = true;
-    refreshRooms(context, socket.rooms);
+    if (published.some((entry) => entry.entity === 'GameRoom')) {
+        context.onStatsChanged();
+    }
+}
+
+// --- Liveness and closing --------------------------------------------------
+
+/** Records a client ping; a socket that had gone stale is live again, so its rooms update. */
+function handlePing(context, socket) {
+    if (context.connections.markHeard(socket)) {
+        refreshRooms(context, socket.rooms);
+    }
+    context.connections.send(socket, { type: SERVER_MESSAGE.PONG });
 }
 
 /** Marks sockets without a recent client ping as not live and updates their rooms. */
 function checkLiveness(context) {
     const changedRooms = new Set();
-    for (const socket of context.wss.clients) {
-        const isLive = context.now() - socket.lastHeardAt <= LIVE_WINDOW_MS;
-        if (isLive === socket.isLive) {
-            continue;
-        }
-
-        socket.isLive = isLive;
+    for (const socket of context.connections.updateLiveness()) {
         for (const roomId of socket.rooms) {
             changedRooms.add(roomId);
         }
@@ -469,69 +345,30 @@ function dropHoldsInRooms(context, socket, roomIds) {
 }
 
 function handleSocketClosed(context, socket) {
-    const rooms = socket.rooms;
-    socket.isSubscribed = false;
-    socket.rooms = new Set();
-    socket.allRooms = false;
+    const rooms = context.subscriptions.unsubscribeAll(socket);
     broadcastVoteChanges(context, context.votes.dropSocket(socket));
     refreshRooms(context, rooms);
 }
 
 // --- Hello / rooms -------------------------------------------------------
 
-/**
- * Decides how to answer a hello:
- *   'fresh'  - client has no position (first connect), nothing to replay
- *   'replay' - same epoch and every event after last_seq is still stored
- *   'resync' - the event log was lost, or the client is too far behind / ahead
- */
-function classifyHello(eventLog, epoch, lastSeq) {
-    const hasPosition = typeof epoch === 'string' && epoch !== '';
-    if (!hasPosition) {
-        return 'fresh';
-    }
-    if (epoch !== eventLog.epoch) {
-        return 'resync';
-    }
-    if (!Number.isInteger(lastSeq)) {
-        return 'fresh';
-    }
-
-    const oldestStoredSeq = eventLog.oldestSeq() ?? eventLog.lastSeq + 1;
-    const isAheadOfServer = lastSeq > eventLog.lastSeq;
-    // Replay needs the event right after last_seq to still be stored.
-    const isGapTooOld = lastSeq + 1 < oldestStoredSeq;
-    if (isAheadOfServer || isGapTooOld) {
-        return 'resync';
-    }
-    return 'replay';
-}
-
-function replayEvents(context, socket, lastSeq) {
-    const roomIds = socket.allRooms ? null : [...socket.rooms];
-    for (const row of context.eventLog.readAfter(lastSeq, roomIds)) {
-        if (canReceive(context, socket, row.room_id, row.entity)) {
-            send(socket, row.text);
-        }
-    }
-}
-
 function handleHello(context, socket, message) {
-    const subscription = resolveSubscription(context, socket.identity, message.rooms);
-    const outcome = classifyHello(context.eventLog, message.epoch, message.last_seq);
+    const subscription = context.subscriptions.resolve(socket.identity, message.rooms);
+    const outcome = context.publisher.classifyHello(message.epoch, message.last_seq);
     // Everything from here to ready runs in one tick, so no live event can
     // slip between the replay and the socket receiving live events.
-    const { removed, affected } = applySubscription(socket, subscription);
+    const { removed, affected } = context.subscriptions.apply(socket, subscription);
     dropHoldsInRooms(context, socket, removed);
 
     if (outcome === 'resync') {
-        send(socket, { type: SERVER_MESSAGE.RESYNC });
+        context.connections.send(socket, { type: SERVER_MESSAGE.RESYNC });
     }
     if (outcome === 'replay') {
-        replayEvents(context, socket, message.last_seq);
+        context.publisher.replay(socket, message.last_seq);
     }
 
-    send(socket, { type: SERVER_MESSAGE.READY, epoch: context.eventLog.epoch, seq: context.eventLog.lastSeq });
+    const ready = { type: SERVER_MESSAGE.READY, epoch: context.publisher.epoch, seq: context.publisher.seq };
+    context.connections.send(socket, ready);
     refreshRooms(context, affected, { skipSocket: socket });
     sendRoomStates(context, socket, subscription.rooms);
 }
@@ -542,38 +379,24 @@ function handleRooms(context, socket, message) {
         return;
     }
 
-    const subscription = resolveSubscription(context, socket.identity, message.rooms);
-    const { added, removed, affected } = applySubscription(socket, subscription);
+    const subscription = context.subscriptions.resolve(socket.identity, message.rooms);
+    const { added, removed, affected } = context.subscriptions.apply(socket, subscription);
     dropHoldsInRooms(context, socket, removed);
 
-    send(socket, { type: SERVER_MESSAGE.ROOMS_OK, seq: context.eventLog.lastSeq });
+    context.connections.send(socket, { type: SERVER_MESSAGE.ROOMS_OK, seq: context.publisher.seq });
     refreshRooms(context, affected, { skipSocket: socket });
     sendRoomStates(context, socket, added);
 }
 
 // --- Vote messages -------------------------------------------------------
 
-function sendVoteError(socket, message, code) {
-    send(socket, { type: SERVER_MESSAGE.VOTE_ERROR, room_id: message.room_id ?? null, topic: message.topic ?? null, code });
-}
-
-function isExplicitlySubscribed(socket, roomId) {
-    return socket.isSubscribed && socket.rooms.has(roomId);
-}
-
-/**
- * The sender's Player in the room, or null. Only explicit subscriptions count:
- * an admin "*" socket is watching, not playing.
- */
-function findSubscribedPlayer(context, socket, roomId) {
-    if (!isExplicitlySubscribed(socket, roomId)) {
-        return null;
-    }
-
-    const player = playersInRoom(context.store, roomId).find((candidate) => {
-        return candidate.email === socket.identity.email;
+function sendVoteError(context, socket, message, code) {
+    context.connections.send(socket, {
+        type: SERVER_MESSAGE.VOTE_ERROR,
+        room_id: message.room_id ?? null,
+        topic: message.topic ?? null,
+        code,
     });
-    return player ?? null;
 }
 
 /**
@@ -584,17 +407,17 @@ function resolveVoter(context, socket, message) {
     const { room_id: roomId, topic } = message;
     const hasFields = typeof roomId === 'string' && typeof topic === 'string';
     if (!hasFields) {
-        sendVoteError(socket, message, 'bad_request');
+        sendVoteError(context, socket, message, 'bad_request');
         return null;
     }
     if (!Object.hasOwn(context.voteTopics, topic)) {
-        sendVoteError(socket, message, 'unknown_topic');
+        sendVoteError(context, socket, message, 'unknown_topic');
         return null;
     }
 
-    const player = findSubscribedPlayer(context, socket, roomId);
+    const player = context.subscriptions.findSubscribedPlayer(socket, roomId);
     if (!player) {
-        sendVoteError(socket, message, 'not_member');
+        sendVoteError(context, socket, message, 'not_member');
         return null;
     }
     return { roomId, topic, player };
@@ -607,11 +430,11 @@ function handleVoteHold(context, socket, message) {
     }
 
     const room = context.store.getRecord('GameRoom', voter.roomId);
-    const players = playersInRoom(context.store, voter.roomId);
+    const players = context.players.listByRoom(voter.roomId);
     const isValid = typeof message.option === 'string'
         && context.voteTopics[voter.topic].validateOption(room, players, message.option);
     if (!isValid) {
-        sendVoteError(socket, message, 'invalid_option');
+        sendVoteError(context, socket, message, 'invalid_option');
         return;
     }
 
@@ -642,7 +465,7 @@ function handleVoteRelease(context, socket, message) {
 function handleVotePassed(context, roomId, topic, option) {
     const definition = context.voteTopics[topic];
     const room = context.store.getRecord('GameRoom', roomId);
-    const isStillValid = definition.validateOption(room, playersInRoom(context.store, roomId), option);
+    const isStillValid = definition.validateOption(room, context.players.listByRoom(roomId), option);
 
     broadcastVoteChanges(context, [{ roomId, topic }]);
     if (!isStillValid) {
@@ -654,7 +477,8 @@ function handleVotePassed(context, roomId, topic, option) {
         context.logger.warn(`Vote ${topic} in room ${roomId} failed: ${result.body.code}`);
         return;
     }
-    sendToRoom(context, roomId, { type: SERVER_MESSAGE.VOTE_PASSED, room_id: roomId, topic, option });
+    const passed = { type: SERVER_MESSAGE.VOTE_PASSED, room_id: roomId, topic, option };
+    context.subscriptions.sendToRoom(roomId, passed);
 }
 
 // --- Entry status messages -------------------------------------------------
@@ -669,7 +493,7 @@ function handleEntryStatus(context, socket, message) {
     const hasFields = typeof roomId === 'string'
         && Number.isInteger(round)
         && (state === null || isEntryState(state));
-    if (!hasFields || !isExplicitlySubscribed(socket, roomId)) {
+    if (!hasFields || !context.subscriptions.isExplicitlySubscribed(socket, roomId)) {
         return;
     }
 
@@ -681,7 +505,7 @@ function handleEntryStatus(context, socket, message) {
         // A state held past the window goes through the same checks then, so a submit, a kick or a
         // socket that has left the room since all stop it.
         const applyHeld = () => {
-            guarded(context, 'held entry status', () => applyEntryStatus(context, socket, message));
+            context.connections.runGuarded('held entry status', () => applyEntryStatus(context, socket, message));
         };
         isAdmitted = context.entries.admitAnnounce(roomId, who, { state, round }, applyHeld);
     }
@@ -692,7 +516,7 @@ function handleEntryStatus(context, socket, message) {
 
 /** Puts a checked and admitted status into effect, and tells the room if that changed anything. */
 function applyEntryStatus(context, socket, { room_id: roomId, state, round }) {
-    const player = findSubscribedPlayer(context, socket, roomId);
+    const player = context.subscriptions.findSubscribedPlayer(socket, roomId);
     if (!player) {
         return;
     }
@@ -730,70 +554,64 @@ function handleClientMessage(context, socket, raw) {
     } else if (message?.type === CLIENT_MESSAGE.ENTRY_STATUS) {
         handleEntryStatus(context, socket, message);
     } else if (message?.type === CLIENT_MESSAGE.PING) {
-        markHeard(context, socket);
-        send(socket, { type: SERVER_MESSAGE.PONG });
-    }
-}
-
-// --- Heartbeat -----------------------------------------------------------
-
-/** Terminates sockets that didn't answer the previous ping, then pings the rest. */
-function heartbeat(wss) {
-    for (const socket of wss.clients) {
-        if (!socket.isAlive) {
-            socket.terminate();
-            continue;
-        }
-        socket.isAlive = false;
-        socket.ping();
+        handlePing(context, socket);
     }
 }
 
 // --- Hub -----------------------------------------------------------------
 
-/** Runs a socket or timer handler, logging instead of crashing the process. */
-function guarded(context, label, handler) {
-    if (context.isClosed) {
-        return;
-    }
-    try {
-        handler();
-    } catch (error) {
-        context.logger.error(`Realtime ${label} failed`, error);
-    }
-}
-
 function setUpSocket(context, socket) {
-    socket.isAlive = true;
-    socket.isLive = true;
-    socket.lastHeardAt = context.now();
-    socket.isSubscribed = false;
-    socket.rooms = new Set();
-    socket.allRooms = false;
-
-    // Only proves the connection is up (see HEARTBEAT_INTERVAL_MS), not that the page is live.
-    socket.on('pong', () => {
-        socket.isAlive = true;
-    });
-    socket.on('message', (raw) => {
-        guarded(context, 'message', () => handleClientMessage(context, socket, raw));
-    });
-    socket.on('close', () => {
-        guarded(context, 'close', () => handleSocketClosed(context, socket));
-    });
-    socket.on('error', (error) => {
-        context.logger.warn(`Realtime socket error: ${error.message}`);
+    context.subscriptions.register(socket);
+    context.connections.register(socket, {
+        onMessage: (raw) => handleClientMessage(context, socket, raw),
+        onClose: () => handleSocketClosed(context, socket),
     });
 }
 
-function startTimers(context, { heartbeatIntervalMs, livenessCheckIntervalMs }) {
-    const heartbeatTimer = setInterval(() => heartbeat(context.wss), heartbeatIntervalMs);
-    const livenessTimer = setInterval(() => {
-        guarded(context, 'periodic check', () => runPeriodicChecks(context));
-    }, livenessCheckIntervalMs);
-    heartbeatTimer.unref();
-    livenessTimer.unref();
-    return [heartbeatTimer, livenessTimer];
+/**
+ * Builds the managers over one WebSocketServer and one Clock, and the hub's context: what the
+ * presence, vote and entry status code above reads. The vote and entry trackers are added by
+ * createRealtimeHub, since their callbacks need the context.
+ */
+function createContext({
+    store,
+    isAdmin,
+    logger,
+    now,
+    voteTopics,
+    heartbeatIntervalMs,
+    livenessCheckIntervalMs,
+    onStatsChanged,
+}) {
+    const clock = new Clock(now);
+    const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_CLIENT_MESSAGE_BYTES });
+    const players = createPlayerReader(store);
+    const connections = new ConnectionManager({
+        clients: wss.clients,
+        clock,
+        logger,
+        heartbeatIntervalMs,
+        livenessCheckIntervalMs,
+    });
+    const subscriptions = new SubscriptionManager({ connections, players, isAdmin });
+    const publisher = new EventPublisher({ eventLog: store.eventLog, connections, subscriptions });
+
+    return {
+        store,
+        players,
+        logger,
+        clock,
+        wss,
+        connections,
+        subscriptions,
+        publisher,
+        // roomId -> { players, text } as last sent, to detect changes.
+        presence: new Map(),
+        voteTopics,
+        votes: null,
+        entries: createEntryStatusTracker({ now: () => clock.now() }),
+        onStatsChanged,
+    };
 }
 
 /**
@@ -826,37 +644,32 @@ export function createRealtimeHub({
     livenessCheckIntervalMs = LIVENESS_CHECK_INTERVAL_MS,
     onStatsChanged = () => {},
 }) {
-    const context = {
+    const context = createContext({
         store,
-        eventLog: store.eventLog,
         isAdmin,
         logger,
         now,
-        wss: new WebSocketServer({ noServer: true, maxPayload: MAX_CLIENT_MESSAGE_BYTES }),
-        // roomId -> { players, text } as last sent, to detect changes.
-        presence: new Map(),
         voteTopics,
-        votes: null,
-        entries: createEntryStatusTracker({ now }),
-        isClosed: false,
+        heartbeatIntervalMs,
+        livenessCheckIntervalMs,
         onStatsChanged,
-    };
+    });
     context.votes = createVoteTracker({
         topics: Object.keys(voteTopics),
         hostDecidesTopics: Object.keys(voteTopics).filter((topic) => voteTopics[topic].hostDecides === true),
         holdMs: voteHoldMs,
         hostGraceMs: hostOfflineGraceMs,
-        now,
+        now: () => context.clock.now(),
         onPassed(roomId, topic, option) {
-            guarded(context, 'vote', () => handleVotePassed(context, roomId, topic, option));
+            context.connections.runGuarded('vote', () => handleVotePassed(context, roomId, topic, option));
         },
         onChanged(changes) {
-            guarded(context, 'vote unlock', () => broadcastVoteChanges(context, changes));
+            context.connections.runGuarded('vote unlock', () => broadcastVoteChanges(context, changes));
         },
     });
 
     context.wss.on('connection', (socket) => setUpSocket(context, socket));
-    const timers = startTimers(context, { heartbeatIntervalMs, livenessCheckIntervalMs });
+    context.connections.startTimers(() => runPeriodicChecks(context));
 
     async function handleUpgrade(request, socket, head) {
         // Node drops its own HTTP error listener once a socket is handed to
@@ -886,7 +699,7 @@ export function createRealtimeHub({
         }
 
         context.wss.handleUpgrade(request, socket, head, (webSocket) => {
-            // The accepted WebSocket now owns the raw socket's errors (see setUpSocket).
+            // The accepted WebSocket now owns the raw socket's errors (see ConnectionManager#register).
             socket.off('error', onSocketError);
             webSocket.identity = identity;
             context.wss.emit('connection', webSocket, request);
@@ -895,11 +708,11 @@ export function createRealtimeHub({
 
     return {
         get epoch() {
-            return context.eventLog.epoch;
+            return context.publisher.epoch;
         },
 
         get seq() {
-            return context.eventLog.lastSeq;
+            return context.publisher.seq;
         },
 
         attach(server) {
@@ -912,40 +725,15 @@ export function createRealtimeHub({
         },
 
         /**
-         * Stores entity changes in the event log, all in one transaction, and
-         * sends each to the sockets subscribed to its room. `events` is
-         * [{ entity, type, record }]. `roomVersion` is the room's version after
-         * the action that produced them (null for generic entity writes).
-         * Throws only when storing fails, and then sends nothing; a failed
-         * send is logged and the remaining events still go out.
+         * Stores entity changes in the event log and sends each to the sockets subscribed to its
+         * room (EventPublisher#publishAll), then updates the published rooms' entry status and
+         * the launcher's stats. `events` is [{ entity, type, record }]; `roomVersion` is the
+         * room's version after the action that produced them (null for generic entity writes).
+         * Throws only when storing fails, and then sends nothing.
          */
         publishAll(events, { roomVersion } = {}) {
-            const entries = [];
-            for (const event of events) {
-                entries.push({
-                    roomId: eventRoomId(event.entity, event.record),
-                    entity: event.entity,
-                    buildText: (seq) => buildEventText(seq, event.entity, event.type, event.record, roomVersion),
-                });
-            }
-            const stored = context.eventLog.appendAll(entries);
-
-            for (const [index, entry] of entries.entries()) {
-                guarded(context, `${entry.entity} event`, () => {
-                    sendEvent(context, entry.roomId, entry.entity, stored[index].text);
-                });
-            }
-
-            // After the events, so a client hears "Sam submitted" before the banner drops.
-            const roomIds = new Set(entries.map((entry) => entry.roomId));
-            for (const roomId of roomIds) {
-                guarded(context, 'entry status', () => reconcileEntries(context, roomId));
-            }
-
-            // A room's status, round or max score shows in its launcher row (X66).
-            if (entries.some((entry) => entry.entity === 'GameRoom')) {
-                context.onStatsChanged();
-            }
+            const published = context.publisher.publishAll(events, { roomVersion });
+            afterPublish(context, published);
         },
 
         /** publishAll for a single change. */
@@ -959,14 +747,9 @@ export function createRealtimeHub({
          * the room's presence and votes; a pending vote is cancelled.
          */
         roomMembershipChanged(roomId) {
-            for (const socket of context.wss.clients) {
-                const isDropped = socket.rooms.has(roomId)
-                    && !isMember(store, socket.identity.email, roomId);
-                if (isDropped) {
-                    socket.rooms.delete(roomId);
-                    // No broadcast needed: the forced refresh below sends every topic.
-                    context.votes.dropSocket(socket, [roomId]);
-                }
+            for (const socket of context.subscriptions.dropNonMembers(roomId)) {
+                // No broadcast needed: the forced refresh below sends every topic.
+                context.votes.dropSocket(socket, [roomId]);
             }
             refreshPresence(context, roomId, { force: true });
         },
@@ -1003,15 +786,9 @@ export function createRealtimeHub({
         },
 
         close() {
-            context.isClosed = true;
+            context.connections.close();
             context.votes.close();
             context.entries.close();
-            for (const timer of timers) {
-                clearInterval(timer);
-            }
-            for (const socket of context.wss.clients) {
-                socket.terminate();
-            }
             context.wss.close();
         },
     };
