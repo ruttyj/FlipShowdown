@@ -1,4 +1,5 @@
 import express from 'express';
+import { ActionRegistry } from '../actions/ActionRegistry.js';
 import { isPlainObject } from '../lib/query.js';
 import { joinAction, kickAction, leaveAction, makeHostAction, reorderAction } from './players.js';
 import {
@@ -9,7 +10,7 @@ import {
     setGameModeAction,
     startAction,
 } from './rooms.js';
-import { runRoomAction } from './roomTx.js';
+import { createRoomActionRunner } from './roomTx.js';
 import {
     editScoreAction,
     endGameAction,
@@ -45,6 +46,39 @@ export const ACTIONS = {
     'set-games-won': setGamesWonAction,
 };
 
+// --- Handlers ------------------------------------------------------------
+
+/** An `{ access, allowedStatuses, run(tx, body) }` action as a handler for RoomActionRunner. */
+function toHandler(action) {
+    return {
+        access: action.access,
+        allowedStatuses: action.allowedStatuses,
+        handle(work, body) {
+            return action.run(work, body);
+        },
+    };
+}
+
+/** Every action in ACTIONS, by name. */
+function createActionRegistry() {
+    const registry = new ActionRegistry();
+    for (const [name, action] of Object.entries(ACTIONS)) {
+        registry.add(name, toHandler(action));
+    }
+    return registry;
+}
+
+/** POST /api/rooms: open to anyone signed in, and there is no room yet whose status to check. */
+const CREATE_ROOM_HANDLER = {
+    access: 'signed_in',
+    allowedStatuses: null,
+    handle(work, body) {
+        return createRoom(work, body);
+    },
+};
+
+// --- Responses -----------------------------------------------------------
+
 function sendResult(res, result) {
     res.status(result.status).json(result.body);
 }
@@ -65,21 +99,22 @@ function readBody(req) {
 }
 
 // --- Rooms ---------------------------------------------------------------
+// `actions` is { runner, registry }: a RoomActionRunner and the ActionRegistry of ACTIONS.
 
-function handleCreateRoom(context, req, res) {
+function handleCreateRoom(actions, req, res) {
     const body = readBody(req);
     if (!body) {
         sendBadBody(res);
         return;
     }
 
-    const request = { user: req.user, roomId: null, access: 'signed_in', allowedStatuses: null };
-    sendResult(res, runRoomAction(context, request, (tx) => createRoom(tx, body)));
+    const request = { user: req.user, roomId: null, body };
+    sendResult(res, actions.runner.run(CREATE_ROOM_HANDLER, request));
 }
 
-function handleAction(context, req, res) {
-    const action = Object.hasOwn(ACTIONS, req.params.name) ? ACTIONS[req.params.name] : null;
-    if (!action) {
+function handleAction(actions, req, res) {
+    const handler = actions.registry.get(req.params.name);
+    if (!handler) {
         res.status(404).json({ message: `Unknown action: ${req.params.name}` });
         return;
     }
@@ -90,23 +125,19 @@ function handleAction(context, req, res) {
         return;
     }
 
-    const request = {
-        user: req.user,
-        roomId: req.params.roomId,
-        access: action.access,
-        allowedStatuses: action.allowedStatuses,
-    };
-    sendResult(res, runRoomAction(context, request, (tx) => action.run(tx, body)));
+    const request = { user: req.user, roomId: req.params.roomId, body };
+    sendResult(res, actions.runner.run(handler, request));
 }
 
 export function createRoomsRouter(context) {
+    const actions = { runner: createRoomActionRunner(context), registry: createActionRegistry() };
     const router = express.Router();
 
-    router.post('/', (req, res) => handleCreateRoom(context, req, res));
+    router.post('/', (req, res) => handleCreateRoom(actions, req, res));
     router.get('/by-code/:code', (req, res) => {
         sendResult(res, lookupRoomByCode(context.store, req.user, req.params.code));
     });
-    router.post('/:roomId/actions/:name', (req, res) => handleAction(context, req, res));
+    router.post('/:roomId/actions/:name', (req, res) => handleAction(actions, req, res));
 
     return router;
 }
