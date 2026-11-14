@@ -15,7 +15,7 @@ the API side is in [backend-contract.md](backend-contract.md#entities).
 | Foreign keys | `ON` for the store's connection; `OFF` only while migrations run |
 | Schema | Numbered migrations, recorded in `schema_migrations` (see [Migrations](#migrations)) |
 | Store API | `openStore()` in `server/src/database/db.js` keeps the record-shaped API the routes always had (`listRecords`, `findRecords`, `createRecords`, ...), over typed tables for the four game entities and a JSON `records` table for everything else |
-| Code | In `server/src/database/`: `db.js` (connection, store), `entityTables.js` (table specs, row codec, `toStoreError`), `migrate.js` + `migrations/` (schema), `backup.js` (copies), `eventLog.js` (`events`/`meta`). Elsewhere: `domain/errors.js` (`StoreError`), `lib/email.js` (canonical emails), `managers/staleRooms.js` (sweep) |
+| Code | In `server/src/database/`: `Database.js` (connection, opening, transactions), `db.js` (store), `entityTables.js` (table specs, row codec, `toStoreError`), `migrate.js` + `migrations/` (schema), `backup.js` (copies), `eventLog.js` (`events`/`meta`). Elsewhere: `domain/errors.js` (`StoreError`), `lib/email.js` (canonical emails), `repositories/TableRepository.js` (CRUD on one typed table), `managers/staleRooms.js` (sweep) |
 
 ## Diagrams
 
@@ -154,8 +154,15 @@ classDiagram
         +SERVER_MANAGED_FIELDS
         +generateId() string
         +stripServerFields(input) object
-        +openDatabase(dataDir) Database
+        +openDatabase(dataDir) connection
         +openStore(dataDir, options) Store
+    }
+    class Database {
+        +open(dataDir)$ Database
+        +connection
+        +prepare(sql)
+        +transaction(fn)
+        +close()
     }
     class Store {
         +eventLog
@@ -172,13 +179,14 @@ classDiagram
         +setUserName(email, fullName)
         +close()
     }
-    class tableBackend {
+    class TableRepository {
+        +constructor(database, spec, options)
         +list()
         +find(field, value)
         +get(id)
         +insert(item, createdBy)
         +update(id, changes)
-        +remove(id)
+        +delete(id)
     }
     class genericBackend {
         +list()
@@ -188,7 +196,7 @@ classDiagram
         +update(id, changes)
         +remove(id)
     }
-    note for tableBackend "GameRoom, Player, RoundScore and ChatMessage on their own tables"
+    note for TableRepository "GameRoom, Player, RoundScore and ChatMessage on their own tables"
     note for genericBackend "Any other entity, as JSON rows in records"
     class entityTables_js {
         +ENTITY_TABLES
@@ -197,6 +205,7 @@ classDiagram
         +applyFields(spec, row, fields)
         +decodeRow(spec, row)
         +toStoreError(error)
+        +translateConstraintErrors(write)
     }
     class StoreError {
         +status
@@ -226,17 +235,19 @@ classDiagram
     }
 
     db_js --> Store : openStore returns
-    Store --> tableBackend : backendFor(entity)
+    db_js --> Database : Database.open
+    Store --> TableRepository : backendFor(entity)
     Store --> genericBackend : backendFor(entity)
-    tableBackend --> entityTables_js : encode and decode rows
+    TableRepository --> entityTables_js : encode and decode rows
+    TableRepository --> Database : prepare
     entityTables_js --> StoreError : throws
     entityTables_js --> email_js : normaliseEmail
     Store --> email_js : canonicalEmail
     Store --> eventLog_js : createEventLog
-    db_js --> migrate_js : openDatabase runs
+    Database --> migrate_js : open runs
     migrate_js --> migrations_index_js : applies
     migrate_js --> backup_js : snapshotDatabase
-    db_js --> backup_js : backupsDir
+    Database --> backup_js : backupsDir
 ```
 
 ### Server start
@@ -244,12 +255,12 @@ classDiagram
 ```mermaid
 sequenceDiagram
     participant App as app.js
-    participant Db as database/db.js
+    participant Db as database/db.js + Database.js
     participant Runner as database/migrate.js
     participant Backup as database/backup.js
     participant File as flip7.db
 
-    App->>Db: openStore(dataDir)
+    App->>Db: openStore(dataDir), which calls Database.open
     Db->>File: open, WAL, synchronous NORMAL
     Db->>Runner: runMigrations(db, MIGRATIONS, snapshotDir)
     Runner->>File: CREATE TABLE IF NOT EXISTS schema_migrations
@@ -278,7 +289,7 @@ sequenceDiagram
         Runner-->>Db: applied versions
     end
     Db->>File: foreign_keys ON
-    Db->>Db: prepare statements, createEventLog
+    Db->>Db: openStore builds a TableRepository per game table, createEventLog
     Db-->>App: store ready
 ```
 
@@ -391,7 +402,7 @@ The `records_room_id` expression index is only used when a query spells
 ## How records map to rows
 
 `server/src/database/entityTables.js` holds one spec per game entity (`table`, `columns` with a kind, `userRef`) and the
-pure codec; `db.js` runs the SQL. Records keep the shape they had as JSON rows (X83).
+pure codec; `repositories/TableRepository.js` runs the SQL. Records keep the shape they had as JSON rows (X83).
 
 | Concern | Rule |
 | --- | --- |

@@ -291,3 +291,12 @@ export function toStoreError(error) {
     }
     return invalidRecord(`Invalid record (${error.message})`);
 }
+
+/** Runs `write` and returns its result, turning a SQLite constraint violation into a StoreError. */
+export function translateConstraintErrors(write) {
+    try {
+        return write();
+    } catch (error) {
+        throw toStoreError(error);
+    }
+}
