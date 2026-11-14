@@ -1,10 +1,18 @@
 import express from 'express';
 import { ActionRegistry } from '../actions/ActionRegistry.js';
+import { createPlayerActions } from '../actions/players/index.js';
 import { CreateRoomAction, createRoomActions } from '../actions/rooms/index.js';
 import { ActionError } from '../domain/errors.js';
 import { isPlainObject } from '../lib/query.js';
 import { RoomService } from '../services/RoomService.js';
-import { joinAction, kickAction, leaveAction, makeHostAction, reorderAction } from './players.js';
+import {
+    createPlayerService,
+    joinAction,
+    kickAction,
+    leaveAction,
+    makeHostAction,
+    reorderAction,
+} from './players.js';
 import { closeAction, deleteAction, setGameModeAction, startAction } from './rooms.js';
 import { createRoomActionRunner } from './roomTx.js';
 import {
@@ -61,13 +69,15 @@ function toHandler(action) {
 function createServices(repositories) {
     return {
         roomService: new RoomService({ roomRepository: repositories.rooms, playerRepository: repositories.players }),
+        playerService: createPlayerService(),
     };
 }
 
 /** Every game action by name: the groups' handler classes, then the ACTIONS not moved yet. */
 function createActionRegistry(services) {
+    const handlers = [...createRoomActions(services), ...createPlayerActions(services)];
     const registry = new ActionRegistry();
-    for (const handler of createRoomActions(services)) {
+    for (const handler of handlers) {
         registry.add(handler.name, handler);
     }
 
