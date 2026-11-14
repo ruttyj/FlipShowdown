@@ -4,10 +4,7 @@ import { roomGameMode } from '../config/gameModes.js';
 import { CHAT_MESSAGE, PLAYER, ROUND_SCORE } from '../domain/entities.js';
 import { ActionError, badRequest } from '../domain/errors.js';
 import { normaliseName } from './auth.js';
-// TODO(P3.3): import newPlayerFields from PlayerService instead. Until then the services layer
-// reaches up into gameActions/ for this one cross-group helper.
-// eslint-disable-next-line no-restricted-imports
-import { newPlayerFields } from '../gameActions/players.js';
+import { newPlayerFields } from './PlayerService.js';
 
 // The room's own rules: create, set the game mode, start, close and delete, plus the join screen's
 // lookup by code. Stateless: every method that acts on a room takes the action's RoomUnitOfWork

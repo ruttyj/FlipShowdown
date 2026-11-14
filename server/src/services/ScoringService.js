@@ -2,12 +2,6 @@ import { isFlip7Hand, modeCapabilities } from '../../../shared/rules.js';
 import { roomGameMode } from '../config/gameModes.js';
 import { PLAYER, ROUND_SCORE } from '../domain/entities.js';
 import { ActionError, badRequest } from '../domain/errors.js';
-// TODO(P3.3): these are the room and player groups' rules; call RoomService and PlayerService
-// instead once they exist.
-// eslint-disable-next-line no-restricted-imports -- temporary cross-group import, see above
-import { clearEditMode } from '../gameActions/players.js';
-// eslint-disable-next-line no-restricted-imports -- temporary cross-group import, see above
-import { resetPlayersForNewGame } from '../gameActions/rooms.js';
 
 // Scoring and game flow: submit, retract and edit scores, Flip 7 attacks, force next round, edit
 // mode, end, reopen, play again and games won. Stateless: every method takes the action's
@@ -164,10 +158,14 @@ function currentGameNumber(room) {
 // --- Service -------------------------------------------------------------
 
 export class ScoringService {
-    /** `roundService` is a RoundService and `totalsService` a TotalsService. */
-    constructor({ roundService, totalsService }) {
-        this.rounds = roundService;
-        this.totals = totalsService;
+    /**
+     * `roundService` is a RoundService, `totalsService` a TotalsService and `roomService` a
+     * RoomService (play-again resets the players the way start does).
+     */
+    constructor({ roundService, totalsService, roomService }) {
+        this.roundService = roundService;
+        this.totalsService = totalsService;
+        this.roomService = roomService;
     }
 
     // --- Recording a score -----------------------------------------------
@@ -180,9 +178,9 @@ export class ScoringService {
     #recordScore(work, player, roundNumber, score) {
         const previousTargetId = findRoundScore(work, player, roundNumber)?.flip7_attack_player_id;
         const roundScore = upsertRoundScore(work, player, roundNumber, score);
-        const updated = this.totals.recomputeTotal(work, player);
-        this.totals.recomputeAttackTarget(work, previousTargetId);
-        this.totals.recomputeAttackTarget(work, score.flip7_attack_player_id);
+        const updated = this.totalsService.recomputeTotal(work, player);
+        this.totalsService.recomputeAttackTarget(work, previousTargetId);
+        this.totalsService.recomputeAttackTarget(work, score.flip7_attack_player_id);
 
         if (roundNumber === work.room.current_round) {
             work.updateChild(PLAYER, updated, {
@@ -214,7 +212,7 @@ export class ScoringService {
 
         requireValidAttack(work, player, score);
         const roundScore = this.#recordScore(work, player, roundNumber, score);
-        this.rounds.runRoundCheck(work);
+        this.roundService.runRoundCheck(work);
         return { already_applied: false, round_score: roundScore };
     }
 
@@ -237,8 +235,8 @@ export class ScoringService {
         }
 
         work.deleteChild(ROUND_SCORE, stored);
-        const updated = this.totals.recomputeTotal(work, player);
-        this.totals.recomputeAttackTarget(work, stored.flip7_attack_player_id);
+        const updated = this.totalsService.recomputeTotal(work, player);
+        this.totalsService.recomputeAttackTarget(work, stored.flip7_attack_player_id);
         work.updateChild(PLAYER, updated, { has_submitted_round: false, current_round_score: 0 });
         return { already_applied: false, round_score: stored };
     }
@@ -253,7 +251,7 @@ export class ScoringService {
         requireValidAttack(work, player, score);
 
         const roundScore = this.#recordScore(work, player, roundNumber, score);
-        this.rounds.runRoundCheck(work);
+        this.roundService.runRoundCheck(work);
         return { round_score: roundScore };
     }
 
@@ -274,15 +272,15 @@ export class ScoringService {
             }
         }
 
-        clearEditMode(work);
-        this.rounds.advanceRound(work);
+        this.roundService.clearEditMode(work);
+        this.roundService.advanceRound(work);
     }
 
     /** Turns edit mode on, owned by the caller, or off, which runs the round check. */
     setEditMode(work, on) {
         if (!on) {
-            clearEditMode(work);
-            this.rounds.runRoundCheck(work);
+            this.roundService.clearEditMode(work);
+            this.roundService.runRoundCheck(work);
             return;
         }
 
@@ -290,7 +288,7 @@ export class ScoringService {
     }
 
     endGame(work) {
-        this.rounds.finishGame(work, 'ended');
+        this.roundService.finishGame(work, 'ended');
     }
 
     // --- After the game --------------------------------------------------
@@ -314,7 +312,7 @@ export class ScoringService {
 
     playAgain(work) {
         // Children first, so no client sees a waiting room with old totals.
-        resetPlayersForNewGame(work);
+        this.roomService.resetPlayersForNewGame(work);
         work.updateRoom({
             status: 'waiting',
             game_number: currentGameNumber(work.room) + 1,

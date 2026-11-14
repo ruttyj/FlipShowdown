@@ -1,4 +1,5 @@
 import { createScoringActions } from '../actions/scoring/index.js';
+import { RoomService } from '../services/RoomService.js';
 import { RoundService } from '../services/RoundService.js';
 import { ScoringService } from '../services/ScoringService.js';
 import { TotalsService } from '../services/TotalsService.js';
@@ -10,7 +11,9 @@ import { TotalsService } from '../services/TotalsService.js';
 function createLegacyActions() {
     const totalsService = new TotalsService();
     const roundService = new RoundService();
-    const scoringService = new ScoringService({ roundService, totalsService });
+    // Play-again only calls resetPlayersForNewGame, which reads no repository.
+    const roomService = new RoomService({ roomRepository: null, playerRepository: null });
+    const scoringService = new ScoringService({ roundService, totalsService, roomService });
 
     const actions = new Map();
     for (const handler of createScoringActions({ scoringService })) {

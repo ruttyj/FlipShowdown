@@ -13,6 +13,16 @@ describe('RoundService', () => {
         room.close();
     });
 
+    test('clearEditMode turns edit mode off', () => {
+        room = openRoom({ is_edit_mode: true, edit_mode_by: 'someone' });
+        const work = room.workFor(HOST);
+
+        rounds.clearEditMode(work);
+
+        assert.equal(work.room.is_edit_mode, false);
+        assert.equal(work.room.edit_mode_by, null);
+    });
+
     describe('finishGame', () => {
         test('a max_score finish names the highest total and counts their win', () => {
             room = openRoom({ is_edit_mode: true, edit_mode_by: 'someone' });

@@ -1,7 +1,5 @@
 import { PLAYER } from '../domain/entities.js';
-// TODO(P3.3): these are the player group's rules; call PlayerService instead once it exists.
-// eslint-disable-next-line no-restricted-imports -- temporary cross-group import, see above
-import { clearEditMode, isTurnPassed, nextPlayerAfter } from '../gameActions/players.js';
+import { isTurnPassed, nextPlayerAfter } from './PlayerService.js';
 
 // Round logic: the round check, advance and finish. These run inside the transaction of the action
 // that made the last change, so a round advances (or a game finishes) exactly once however many
@@ -45,6 +43,15 @@ function nextTurnPlayer(room, orderedPlayers) {
 
 export class RoundService {
     /**
+     * Turns edit mode off. Edit mode holds the round check, so callers follow this with the round
+     * check, an advance or a finish. It lives here rather than in PlayerService, which uses it for a host change,
+     * because finishGame needs it too and PlayerService already depends on this service.
+     */
+    clearEditMode(work) {
+        work.updateRoom({ is_edit_mode: false, edit_mode_by: null });
+    }
+
+    /**
      * Finishes the game. `reason` is 'max_score' or 'ended'; only 'max_score' adds a win. Callers
      * make sure the room is `playing`, and a finished room isn't `playing`, so a game is finished
      * (and a win counted) once. turn_passed_round stays as it is, because reopen-game goes back to
@@ -57,7 +64,7 @@ export class RoundService {
             work.updateChild(PLAYER, winner, { games_won: (winner.games_won ?? 0) + 1 });
         }
 
-        clearEditMode(work);
+        this.clearEditMode(work);
         work.updateRoom({
             status: 'finished',
             finish_reason: reason,

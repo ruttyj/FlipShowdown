@@ -60,10 +60,11 @@ export const ACTIONS = {
 function createServices(repositories) {
     const totalsService = new TotalsService();
     const roundService = new RoundService();
+    const roomService = new RoomService({ roomRepository: repositories.rooms, playerRepository: repositories.players });
     return {
-        roomService: new RoomService({ roomRepository: repositories.rooms, playerRepository: repositories.players }),
-        playerService: new PlayerService({ rounds: roundService, totals: totalsService }),
-        scoringService: new ScoringService({ roundService, totalsService }),
+        roomService,
+        playerService: new PlayerService({ roundService, totalsService }),
+        scoringService: new ScoringService({ roundService, totalsService, roomService }),
         roundService,
         totalsService,
     };

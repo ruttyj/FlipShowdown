@@ -102,12 +102,12 @@ function passTurnAfterDealerLeft(work, next) {
 
 export class PlayerService {
     /**
-     * `rounds` has runRoundCheck(work, room), the contract's round check (see RoundService), and
-     * `totals` has recomputeAttackTarget(work, targetId) (see TotalsService).
+     * `roundService` is a RoundService (the round check, and clearing edit mode) and
+     * `totalsService` a TotalsService (recomputing a Flip 7 attack's target).
      */
-    constructor({ rounds, totals }) {
-        this.rounds = rounds;
-        this.totals = totals;
+    constructor({ roundService, totalsService }) {
+        this.roundService = roundService;
+        this.totalsService = totalsService;
     }
 
     // --- Actions ---------------------------------------------------------
@@ -148,7 +148,7 @@ export class PlayerService {
         work.requireStatus(OPEN_STATUSES);
 
         this.removePlayer(work, player);
-        this.rounds.runRoundCheck(work, work.room);
+        this.roundService.runRoundCheck(work);
     }
 
     /** Removes another player from the room. The caller can't kick themselves. */
@@ -159,7 +159,7 @@ export class PlayerService {
         }
 
         this.removePlayer(work, player);
-        this.rounds.runRoundCheck(work, work.room);
+        this.roundService.runRoundCheck(work);
     }
 
     /** Hands the host role to the player with this id. Nothing changes if they already host. */
@@ -171,7 +171,7 @@ export class PlayerService {
         }
 
         this.setHost(work, newHost);
-        this.rounds.runRoundCheck(work, work.room);
+        this.roundService.runRoundCheck(work);
     }
 
     /** Sets the turn order to the order of `playerIds`, which must list every player exactly once. */
@@ -188,11 +188,6 @@ export class PlayerService {
 
     // --- Shared with the other rules --------------------------------------
 
-    /** Turns edit mode off. Callers run the round check afterwards. */
-    clearEditMode(work) {
-        work.updateRoom({ is_edit_mode: false, edit_mode_by: null });
-    }
-
     /**
      * Makes `newHost` the host: moves host_email, host_player_id and is_host,
      * and turns edit mode off (a host change always ends edit mode). Callers
@@ -203,7 +198,7 @@ export class PlayerService {
             work.updateChild(PLAYER, player, { is_host: player.id === newHost.id });
         }
         work.updateRoom({ host_email: newHost.email, host_player_id: newHost.id });
-        this.clearEditMode(work);
+        this.roundService.clearEditMode(work);
     }
 
     /**
@@ -226,7 +221,7 @@ export class PlayerService {
         work.deleteChild(PLAYER, player);
 
         for (const attackedId of attackedIds) {
-            this.totals.recomputeAttackTarget(work, attackedId);
+            this.totalsService.recomputeAttackTarget(work, attackedId);
         }
 
         if (work.room.winner_player_id === player.id) {
@@ -244,7 +239,7 @@ export class PlayerService {
         if (isHostPlayer(work.room, player)) {
             this.setHost(work, next);
         } else if (work.room.edit_mode_by === player.id) {
-            this.clearEditMode(work);
+            this.roundService.clearEditMode(work);
         }
     }
 }

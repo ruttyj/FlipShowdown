@@ -8,7 +8,7 @@ import { RoomService } from '../services/RoomService.js';
 
 // The room actions' original function API, as thin adapters over RoomService and the handlers in
 // actions/rooms/. Production routes use those classes; these remain for the callers not moved yet
-// (the scoring actions' play-again, the stale-room sweep, until P3.3) and for the tests and the
+// (the stale-room sweep, until P3.3) and for the tests and the
 // root test fixture, which import them by name. `tx` is a RoomUnitOfWork, `store` the store facade.
 
 /** A RoomService on the store's repositories. Services are stateless, so a fresh one is fine. */
@@ -23,11 +23,6 @@ function roomServiceFor(store) {
 export function createRoom(tx, body) {
     const handler = new CreateRoomAction({ roomService: roomServiceFor(tx.store) });
     return handler.handle(tx, body);
-}
-
-/** See RoomService#resetPlayersForNewGame. */
-export function resetPlayersForNewGame(tx) {
-    roomServiceFor(tx.store).resetPlayersForNewGame(tx);
 }
 
 /** See RoomService#deleteRoom. */

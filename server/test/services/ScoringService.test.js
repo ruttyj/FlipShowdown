@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { afterEach, describe, test } from 'node:test';
+import { RoomService } from '../../src/services/RoomService.js';
 import { RoundService } from '../../src/services/RoundService.js';
 import { ScoringService, requireEditableRound } from '../../src/services/ScoringService.js';
 import { TotalsService } from '../../src/services/TotalsService.js';
@@ -20,7 +21,9 @@ import {
 const FLIP7_SCORE = { cards: FLIP7_CARDS, base_sum: 28, final_score: 28 };
 
 function createScoringService() {
-    return new ScoringService({ roundService: new RoundService(), totalsService: new TotalsService() });
+    // ScoringService only uses RoomService#resetPlayersForNewGame, which reads no repository.
+    const roomService = new RoomService({ roomRepository: null, playerRepository: null });
+    return new ScoringService({ roundService: new RoundService(), totalsService: new TotalsService(), roomService });
 }
 
 describe('ScoringService', () => {

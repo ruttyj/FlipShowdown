@@ -9,10 +9,12 @@ import {
     newPlayerFields,
     nextPlayerAfter,
 } from '../../src/services/PlayerService.js';
+import { RoundService } from '../../src/services/RoundService.js';
 import { GUEST, HOST, OUTSIDER, openTempStore, seedRoom } from '../actions/roomFixture.js';
 
-// PlayerService on a real store through a RoomUnitOfWork. The round and totals rules it calls are
-// recording stubs, so each test sees exactly which round checks and recomputes it asked for.
+// PlayerService on a real store through a RoomUnitOfWork. The round check and the totals rule it
+// calls are recording stubs, so each test sees exactly which round checks and recomputes it asked
+// for. Clearing edit mode is RoundService's real one, since the tests check its effect.
 
 /** Asserts that `action` throws an ActionError with this status and code. */
 function assertActionError(action, status, code) {
@@ -24,16 +26,24 @@ function assertActionError(action, status, code) {
     });
 }
 
-/** A PlayerService whose round and totals rules record their calls in `calls`. */
+/** A RoundService whose round check only records the room it ran on. */
+class RecordingRoundService extends RoundService {
+    constructor(calls) {
+        super();
+        this.calls = calls;
+    }
+
+    runRoundCheck(work) {
+        this.calls.roundChecks.push(work.room.id);
+    }
+}
+
+/** A PlayerService whose round check and totals rule record their calls in `calls`. */
 function createRecordingService() {
     const calls = { roundChecks: [], attackRecomputes: [] };
     const service = new PlayerService({
-        rounds: {
-            runRoundCheck(work, room) {
-                calls.roundChecks.push(room.id);
-            },
-        },
-        totals: {
+        roundService: new RecordingRoundService(calls),
+        totalsService: {
             recomputeAttackTarget(work, targetId) {
                 calls.attackRecomputes.push(targetId);
             },
@@ -429,17 +439,5 @@ describe('PlayerService', () => {
                 assert.equal(work.room.turn_passed_round, 2);
             });
         });
-    });
-
-    // --- clearEditMode ---------------------------------------------------
-
-    test('clearEditMode turns edit mode off', () => {
-        updateSeededRoom({ is_edit_mode: true, edit_mode_by: seeded.host.id });
-        const work = workFor(HOST);
-
-        service.clearEditMode(work);
-
-        assert.equal(work.room.is_edit_mode, false);
-        assert.equal(work.room.edit_mode_by, null);
     });
 });
