@@ -185,6 +185,25 @@ describe('RoomActionRunner', () => {
         assert.equal(refused.status, 409);
     });
 
+    test('runAsSystem runs a host-only handler as the server, keeping its statuses', () => {
+        let seen = null;
+        const hostOnly = handlerFor('host', ['waiting'], (work, body) => {
+            seen = { user: work.user, body };
+            work.updateRoom({ max_score: body.max_score });
+        });
+        const playingOnly = handlerFor('host', ['playing'], () => {});
+
+        const allowed = runner.runAsSystem(hostOnly, seeded.room.id, { max_score: 99 });
+        const refused = runner.runAsSystem(playingOnly, seeded.room.id, {});
+
+        assert.equal(allowed.status, 200);
+        assert.equal(allowed.body.room.max_score, 99);
+        assert.equal(seen.user, SYSTEM_USER);
+        assert.deepEqual(seen.body, { max_score: 99 });
+        assert.equal(refused.status, 409);
+        assert.equal(refused.body.code, 'wrong_status');
+    });
+
     // --- Failures --------------------------------------------------------
 
     test('an ActionError rolls every write back, publishes nothing and answers its status and body', () => {

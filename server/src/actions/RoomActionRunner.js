@@ -1,3 +1,4 @@
+import { SYSTEM_USER } from '../domain/entities.js';
 import { ActionError, StoreError } from '../domain/errors.js';
 import { RoomUnitOfWork } from './RoomUnitOfWork.js';
 
@@ -55,6 +56,21 @@ export class RoomActionRunner {
 
         this.#publish(work);
         return { status: 200, body: response };
+    }
+
+    /**
+     * Runs `handler` on the room as the server itself (SYSTEM_USER), for a passed vote or the
+     * stale-room sweep: the access check is skipped, but the handler's allowed statuses still
+     * apply and its events publish as usual. `body` is passed to the handler. Returns what run
+     * returns.
+     */
+    runAsSystem(handler, roomId, body) {
+        const systemHandler = {
+            access: 'system',
+            allowedStatuses: handler.allowedStatuses,
+            handle: (work, handlerBody) => handler.handle(work, handlerBody),
+        };
+        return this.run(systemHandler, { user: SYSTEM_USER, roomId, body });
     }
 
     #createUnitOfWork(user) {

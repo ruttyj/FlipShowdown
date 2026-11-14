@@ -1,8 +1,7 @@
-import { deleteRoomCascade } from '../gameActions/rooms.js';
-import { ROOM, runRoomAction, SYSTEM_USER } from '../gameActions/roomTx.js';
+import { ROOM } from '../domain/entities.js';
 
-// The stale-room sweep (X81). Rooms nobody has touched for STALE_ROOM_HOURS are deleted the same
-// way the host's `delete` action does it: the room is published as closed, then it and its
+// The stale-room sweep (X81). Rooms nobody has touched for STALE_ROOM_HOURS are deleted through
+// the host's `delete` action, run as the server: the room is published as closed, then it and its
 // players, scores and chat are removed. A room with a player online is never swept, however long
 // it has been idle. The sweep runs when the server starts listening and then every hour.
 
@@ -14,13 +13,15 @@ function lastTouchedMs(room) {
     return new Date(lastTouched).getTime();
 }
 
-/** Deletes one room as the server. True when it was deleted; a failure is logged and skipped. */
-function deleteStaleRoom(context, roomId) {
-    const request = { user: SYSTEM_USER, roomId, access: 'system', allowedStatuses: null };
+/**
+ * Deletes one room as the server. True when it was deleted; a failure is logged and skipped.
+ * `deletion` is { runner, deleteAction, logger } (see createStaleRoomSweeper).
+ */
+function deleteStaleRoom(deletion, roomId) {
     try {
-        return runRoomAction(context, request, deleteRoomCascade).status === 200;
+        return deletion.runner.runAsSystem(deletion.deleteAction, roomId, {}).status === 200;
     } catch (error) {
-        context.logger.error(`Deleting stale room ${roomId} failed`, error);
+        deletion.logger.error(`Deleting stale room ${roomId} failed`, error);
         return false;
     }
 }
@@ -47,11 +48,14 @@ function sweepSafely(logger, sweep) {
 }
 
 /**
- * Builds the sweeper. `context` is the app context ({ store, hub, logger, ... }); `maxIdleMs` is
- * how long a room may sit untouched, or null to turn the sweep off; `now` is the clock in ms.
- * Returns { sweep, start, stop }. `sweep()` runs once and returns the deleted room ids.
+ * Builds the sweeper. `context` is the app context ({ store, hub, logger, ... }); `runner` is the
+ * RoomActionRunner and `deleteAction` the registry's `delete` handler, which it runs as the
+ * server; `maxIdleMs` is how long a room may sit untouched, or null to turn the sweep off; `now`
+ * is the clock in ms. Returns { sweep, start, stop }. `sweep()` runs once and returns the deleted
+ * room ids.
  */
-export function createStaleRoomSweeper({ context, maxIdleMs, now = Date.now }) {
+export function createStaleRoomSweeper({ context, runner, deleteAction, maxIdleMs, now = Date.now }) {
+    const deletion = { runner, deleteAction, logger: context.logger };
     let timer = null;
 
     function sweep() {
@@ -61,7 +65,7 @@ export function createStaleRoomSweeper({ context, maxIdleMs, now = Date.now }) {
 
         const deletedRoomIds = [];
         for (const roomId of findStaleRoomIds(context, now() - maxIdleMs)) {
-            if (deleteStaleRoom(context, roomId)) {
+            if (deleteStaleRoom(deletion, roomId)) {
                 deletedRoomIds.push(roomId);
             }
         }

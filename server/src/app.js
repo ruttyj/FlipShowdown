@@ -2,13 +2,14 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import express from 'express';
+import { createGameActions } from './actions/createGameActions.js';
+import { createVoteTopics } from './actions/VoteTopics.js';
 import { createAiRouter } from './http/aiRoutes.js';
 import { createAuthenticator } from './services/auth.js';
 import { createAuthApiRouter, createLoginRouter, createRequireUser } from './http/authRoutes.js';
 import { openStore } from './database/db.js';
 import { createEntitiesRouter } from './http/entities.js';
-import { createRoomsRouter } from './gameActions/index.js';
-import { createVoteTopics } from './gameActions/voteTopics.js';
+import { createRoomsRouter } from './http/roomsRoutes.js';
 import { createLauncherReporter } from './managers/launcherReporter.js';
 import { createRealtimeHub } from './realtime/hub.js';
 import { createStaleRoomSweeper } from './managers/staleRooms.js';
@@ -124,13 +125,18 @@ export function createServer(config, options = {}) {
     // The vote topics run game actions, which publish through the hub, so the
     // hub joins the context once it exists.
     const context = { config, store, authenticator, logger, hub: null, entities: config.entities };
+    // One set of services, handlers and runner for the rooms router, the vote topics and the sweep.
+    const gameActions = createGameActions(context);
     const hub = createRealtimeHub({
         authenticate: (headers) => authenticator.authenticate(headers),
         store,
         isAdmin: (identity) => config.adminEmails.has(identity.email),
         logger,
         now: options.realtimeNow,
-        voteTopics: createVoteTopics(context),
+        voteTopics: createVoteTopics({
+            runner: gameActions.runner,
+            makeHostAction: gameActions.registry.get('make-host'),
+        }),
         voteHoldMs: options.voteHoldMs,
         hostOfflineGraceMs: config.hostOfflineGraceMs ?? undefined,
         onStatsChanged: () => reporter.markChanged(),
@@ -160,7 +166,7 @@ export function createServer(config, options = {}) {
     app.use('/api', express.json({ limit: JSON_BODY_LIMIT }));
     app.use('/api/auth', createAuthApiRouter(context));
     app.use('/api/entities', createRequireUser(context), createEntitiesRouter(context));
-    app.use('/api/rooms', createRequireUser(context), createRoomsRouter(context));
+    app.use('/api/rooms', createRequireUser(context), createRoomsRouter(gameActions));
     // Unknown /api paths still require auth first, as the contract says.
     app.use('/api', createRequireUser(context), apiNotFound);
 
@@ -174,6 +180,8 @@ export function createServer(config, options = {}) {
     server.on('listening', () => reporter.sendNow());
     const sweeper = createStaleRoomSweeper({
         context,
+        runner: gameActions.runner,
+        deleteAction: gameActions.registry.get('delete'),
         maxIdleMs: config.staleRoomMaxIdleMs,
         now: options.roomSweepNow,
     });

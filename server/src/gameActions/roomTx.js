@@ -1,5 +1,4 @@
-import { AccessPolicy } from '../actions/AccessPolicy.js';
-import { RoomActionRunner } from '../actions/RoomActionRunner.js';
+import { createRoomActionRunner } from '../actions/createGameActions.js';
 import { CHAT_MESSAGE, OPEN_STATUSES, PLAYER, ROOM, ROUND_SCORE, SYSTEM_USER } from '../domain/entities.js';
 import { ActionError, badRequest } from '../domain/errors.js';
 
@@ -74,22 +73,6 @@ export function checkStatus(tx, allowedStatuses) {
 }
 
 // --- Running an action -------------------------------------------------------
-
-/**
- * A RoomActionRunner for the app context ({ store, hub, config, logger }). The hub is read from
- * the context each time the runner publishes, since the app sets it after building the context.
- */
-export function createRoomActionRunner(context) {
-    return new RoomActionRunner({
-        database: context.store.database,
-        repositories: context.store.repositories,
-        store: context.store,
-        accessPolicy: new AccessPolicy(),
-        adminEmails: context.config.adminEmails,
-        getHub: () => context.hub,
-        logger: context.logger,
-    });
-}
 
 /**
  * Runs one game action (see RoomActionRunner#run). `request` is { user, roomId, access,

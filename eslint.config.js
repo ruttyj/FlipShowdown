@@ -201,19 +201,6 @@ export default [
     },
   },
   {
-    // TODO(P3/P4): remove when runRoomAction and deleteRoomCascade move out of gameActions/
-    // (P3.1 runner, P3.3 deletes gameActions/). Until then staleRooms.js imports
-    // gameActions/rooms.js and gameActions/roomTx.js, so this file may import gameActions/
-    // but not actions/. Comes after the logic block, so its options replace the logic ones.
-    files: ["server/src/managers/staleRooms.js"],
-    rules: {
-      "no-restricted-imports": banImports(ENTRY_IMPORTS, {
-        regex: "(^|/)actions/",
-        message: HANDLER_IMPORTS.message,
-      }),
-    },
-  },
-  {
     // Data.
     files: ["server/src/repositories/**/*.js", "server/src/database/**/*.js"],
     rules: {
