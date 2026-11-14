@@ -2,7 +2,7 @@ import { StoreError } from '../domain/errors.js';
 import { normaliseEmail } from '../lib/email.js';
 
 // How the four game entities map onto their tables (migration 0003), and the conversion between
-// an API record and a table row. db.js runs the SQL; this module is pure.
+// an API record and a table row. The repositories run the SQL; this module is pure.
 //
 // A record keeps the shape it had when it was stored as JSON:
 // - every declared field is present, as null when it was never set;

@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 
-// The fields every stored record has, whichever table it lives in. Shared by the typed-table
-// repositories and the generic `records` code in database/db.js.
+// The fields every stored record has, whichever table it lives in. Shared by TableRepository and
+// RecordRepository (the generic `records` table).
 
 /** Fields the server owns; whatever the client sends for these is discarded. */
 export const SERVER_MANAGED_FIELDS = ['id', 'created_date', 'updated_date', 'created_by'];

@@ -14,8 +14,8 @@ the API side is in [backend-contract.md](backend-contract.md#entities).
 | Journal | `journal_mode = WAL`, `synchronous = NORMAL` |
 | Foreign keys | `ON` for the store's connection; `OFF` only while migrations run |
 | Schema | Numbered migrations, recorded in `schema_migrations` (see [Migrations](#migrations)) |
-| Store API | `openStore()` in `server/src/database/db.js` keeps the record-shaped API the routes always had (`listRecords`, `findRecords`, `createRecords`, ...), over typed tables for the four game entities and a JSON `records` table for everything else |
-| Code | In `server/src/database/`: `Database.js` (connection, opening, transactions), `db.js` (store), `entityTables.js` (table specs, row codec, `toStoreError`), `migrate.js` + `migrations/` (schema), `backup.js` (copies), `eventLog.js` (`events`/`meta`). Elsewhere: `domain/errors.js` (`StoreError`), `lib/email.js` (canonical emails), `repositories/` (one class per table, see [Repositories](#repositories); `recordFields.js` holds the server-managed fields, ids and timestamps), `managers/staleRooms.js` (sweep) |
+| Store API | `openStore()` in `server/src/database/db.js` keeps the record-shaped API the routes always had (`listRecords`, `findRecords`, `createRecords`, ...) as a thin facade: it builds one `Database` and the repositories, and each method delegates to `EntityGateway` (typed tables for the four game entities, a JSON `records` table for everything else), `UserRepository` or `EventRepository` (`store.eventLog`). It also exposes `store.database` and `store.repositories` for the later refactor steps |
+| Code | In `server/src/database/`: `Database.js` (connection, opening, transactions), `db.js` (store facade), `entityTables.js` (table specs, row codec, `toStoreError`), `migrate.js` + `migrations/` (schema), `backup.js` (copies), `eventLog.js` (`createEventLog`, a test adapter over `EventRepository`). Elsewhere: `domain/errors.js` (`StoreError`), `lib/email.js` (canonical emails), `repositories/` (one class per table plus `EntityGateway`, see [Repositories](#repositories); `recordFields.js` holds the server-managed fields, ids and timestamps), `managers/staleRooms.js` (sweep) |
 
 ## Diagrams
 
@@ -151,9 +151,6 @@ erDiagram
 ```mermaid
 classDiagram
     class db_js {
-        +SERVER_MANAGED_FIELDS
-        +generateId() string
-        +stripServerFields(input) object
         +openDatabase(dataDir) connection
         +openStore(dataDir, options) Store
     }
@@ -165,6 +162,8 @@ classDiagram
         +close()
     }
     class Store {
+        +database
+        +repositories
         +eventLog
         +listRecords(entity)
         +findRecords(entity, field, value)
@@ -179,25 +178,26 @@ classDiagram
         +setUserName(email, fullName)
         +close()
     }
-    class TableRepository {
-        +constructor(database, spec, options)
-        +list()
-        +find(field, value)
-        +get(id)
-        +insert(item, createdBy)
-        +update(id, changes)
-        +delete(id)
+    class EntityGateway {
+        +list(entity)
+        +find(entity, field, value)
+        +findByEmail(entity, email)
+        +get(entity, id)
+        +insertMany(entity, items, createdBy)
+        +insert(entity, item, createdBy)
+        +update(entity, id, changes)
+        +delete(entity, id)
     }
-    class genericBackend {
-        +list()
-        +find(field, value)
-        +get(id)
-        +insert(item, createdBy)
-        +update(id, changes)
-        +remove(id)
+    class repositories {
+        +users
+        +rooms
+        +players
+        +roundScores
+        +chatMessages
+        +records
+        +events
     }
-    note for TableRepository "GameRoom, Player, RoundScore and ChatMessage on their own tables"
-    note for genericBackend "Any other entity, as JSON rows in records"
+    note for repositories "See Repositories below"
     class entityTables_js {
         +ENTITY_TABLES
         +emptyRow(spec)
@@ -231,19 +231,23 @@ classDiagram
     }
     note for email_js "server/src/lib/email.js"
     class eventLog_js {
-        +createEventLog(db, options)
+        +createEventLog(connection, options)
     }
+    note for eventLog_js "Test adapter: an EventRepository on a raw connection"
 
     db_js --> Store : openStore returns
     db_js --> Database : Database.open
-    Store --> TableRepository : backendFor(entity)
-    Store --> genericBackend : backendFor(entity)
-    TableRepository --> entityTables_js : encode and decode rows
-    TableRepository --> Database : prepare
+    db_js --> repositories : builds
+    Store --> EntityGateway : record methods
+    Store --> repositories : users, events
+    EntityGateway --> repositories : typed table or records
+    EntityGateway --> Database : insertMany transaction
+    repositories --> entityTables_js : encode and decode rows
+    repositories --> Database : prepare, transaction
     entityTables_js --> StoreError : throws
     entityTables_js --> email_js : normaliseEmail
-    Store --> email_js : canonicalEmail
-    Store --> eventLog_js : createEventLog
+    repositories --> email_js : canonicalEmail
+    eventLog_js --> repositories : new EventRepository
     Database --> migrate_js : open runs
     migrate_js --> migrations_index_js : applies
     migrate_js --> backup_js : snapshotDatabase
@@ -252,10 +256,12 @@ classDiagram
 
 ### Repositories
 
-One class per table in `server/src/repositories/`, each taking a `Database`. Only
-`TableRepository` is wired into the store so far; the rest are being moved over from `db.js` and
-`eventLog.js`. `TableRepository#insert` and `#update` each run in a transaction (a savepoint
-inside an outer one), so a user that `resolveUserId` creates for a failed write is rolled back.
+One class per table in `server/src/repositories/`, each taking a `Database`; `openStore` builds
+one of each and the store delegates to them. `EntityGateway` picks the repository for an entity
+name: the four game entities' typed repositories, or `RecordRepository` for any other, and runs
+`insertMany` (`createRecords`) in one transaction. `TableRepository#insert` and `#update` each run
+in a transaction (a savepoint inside an outer one), so a user that `resolveUserId` creates for a
+failed write is rolled back.
 
 ```mermaid
 classDiagram
@@ -312,6 +318,8 @@ classDiagram
     TableRepository <|-- ChatMessageRepository
     RoomRepository --> UserRepository : resolveId for host_email
     PlayerRepository --> UserRepository : resolveId for email
+    EntityGateway --> TableRepository : GameRoom, Player, RoundScore, ChatMessage
+    EntityGateway --> RecordRepository : any other entity
     note for RecordRepository "Any other entity, as JSON rows in records"
     note for EventRepository "events and meta (the realtime log)"
 ```
@@ -355,7 +363,7 @@ sequenceDiagram
         Runner-->>Db: applied versions
     end
     Db->>File: foreign_keys ON
-    Db->>Db: openStore builds a TableRepository per game table, createEventLog
+    Db->>Db: openStore builds the repositories (EventRepository creates the epoch) and EntityGateway
     Db-->>App: store ready
 ```
 
