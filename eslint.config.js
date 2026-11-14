@@ -24,6 +24,13 @@ const HANDLER_IMPORTS = {
   message: "Logic, data and base layers may not import handlers (actions, gameActions).",
 };
 
+// gameActions/ sits outside the layers: it holds only the test-facing adapters (the old function
+// API that tests import by path), so no production file may import it, whatever its layer.
+const GAME_ACTIONS_IMPORTS = {
+  regex: "(^|/)gameActions/",
+  message: "gameActions/ is test-facing adapters only; production code uses actions/ and services/.",
+};
+
 const LOGIC_IMPORTS = {
   regex: "(^|/)(services|managers)/",
   message: "Data and base layers may not import logic (services, managers).",
@@ -187,8 +194,25 @@ export default [
     },
   },
   {
+    // Entry (app.js, index.js, http/, realtime/, providers/) and anything else in server/src.
+    // The layer blocks below replace this rule's options for their folders, so each of them
+    // bans gameActions/ too (logic, data and base through HANDLER_IMPORTS).
+    files: ["server/src/**/*.js"],
+    ignores: ["server/src/gameActions/**"],
+    rules: {
+      "no-restricted-imports": banImports(GAME_ACTIONS_IMPORTS),
+    },
+  },
+  {
     // Handlers.
-    files: ["server/src/actions/**/*.js", "server/src/gameActions/**/*.js"],
+    files: ["server/src/actions/**/*.js"],
+    rules: {
+      "no-restricted-imports": banImports(ENTRY_IMPORTS, GAME_ACTIONS_IMPORTS),
+    },
+  },
+  {
+    // The test-facing adapters wrap the handlers and services, but not the entry layer.
+    files: ["server/src/gameActions/**/*.js"],
     rules: {
       "no-restricted-imports": banImports(ENTRY_IMPORTS),
     },

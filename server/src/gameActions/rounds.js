@@ -1,7 +1,7 @@
 import { RoundService } from '../services/RoundService.js';
 
-// The old function API over RoundService: advanceRound for coverageGaps.test. `tx` is the action's
-// RoomUnitOfWork.
+// Test-facing adapter (see roomTx.js): RoundService#advanceRound as the old function, for
+// coverageGaps.test. `tx` is the action's RoomUnitOfWork.
 
 const roundService = new RoundService();
 

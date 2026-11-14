@@ -49,8 +49,8 @@ export class RoomUnitOfWork {
      * `repositories` is the store's repositories (rooms, players, roundScores and chatMessages
      * are used). `user` is the caller's users row, or SYSTEM_USER for a system action, and
      * `isAdmin` whether that caller is an admin. `store` is the store facade, kept as `this.store`
-     * because rooms.js still reads `tx.store` to pick a room code (until P3.2) and loadRoom reads
-     * through it (see there).
+     * because loadRoom reads through it (see there) and the test-facing adapters in gameActions/
+     * build their services on `tx.store.repositories`. Services must not use it.
      */
     constructor({ repositories, store, user, isAdmin }) {
         this.store = store;

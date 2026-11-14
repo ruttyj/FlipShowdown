@@ -126,7 +126,7 @@ export function createServer(config, options = {}) {
     // hub joins the context once it exists.
     const context = { config, store, authenticator, logger, hub: null, entities: config.entities };
     // One set of services, handlers and runner for the rooms router, the vote topics and the sweep.
-    const gameActions = createGameActions(context);
+    const roomActions = createGameActions(context);
     const hub = createRealtimeHub({
         authenticate: (headers) => authenticator.authenticate(headers),
         store,
@@ -134,8 +134,8 @@ export function createServer(config, options = {}) {
         logger,
         now: options.realtimeNow,
         voteTopics: createVoteTopics({
-            runner: gameActions.runner,
-            makeHostAction: gameActions.registry.get('make-host'),
+            runner: roomActions.runner,
+            makeHostAction: roomActions.registry.get('make-host'),
         }),
         voteHoldMs: options.voteHoldMs,
         hostOfflineGraceMs: config.hostOfflineGraceMs ?? undefined,
@@ -166,7 +166,7 @@ export function createServer(config, options = {}) {
     app.use('/api', express.json({ limit: JSON_BODY_LIMIT }));
     app.use('/api/auth', createAuthApiRouter(context));
     app.use('/api/entities', createRequireUser(context), createEntitiesRouter(context));
-    app.use('/api/rooms', createRequireUser(context), createRoomsRouter(gameActions));
+    app.use('/api/rooms', createRequireUser(context), createRoomsRouter(roomActions));
     // Unknown /api paths still require auth first, as the contract says.
     app.use('/api', createRequireUser(context), apiNotFound);
 
@@ -180,8 +180,8 @@ export function createServer(config, options = {}) {
     server.on('listening', () => reporter.sendNow());
     const sweeper = createStaleRoomSweeper({
         context,
-        runner: gameActions.runner,
-        deleteAction: gameActions.registry.get('delete'),
+        runner: roomActions.runner,
+        deleteAction: roomActions.registry.get('delete'),
         maxIdleMs: config.staleRoomMaxIdleMs,
         now: options.roomSweepNow,
     });

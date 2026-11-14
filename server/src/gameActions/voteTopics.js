@@ -1,12 +1,17 @@
 import { createRoomActionRunner } from '../actions/createGameActions.js';
-import { createVoteTopics as createTopics } from '../actions/VoteTopics.js';
-import { makeHostAction } from './players.js';
+import { MakeHostAction } from '../actions/players/MakeHostAction.js';
+import { createVoteTopics as createTopicsForRunner } from '../actions/VoteTopics.js';
+import { PlayerService } from '../services/PlayerService.js';
+import { RoundService } from '../services/RoundService.js';
+import { TotalsService } from '../services/TotalsService.js';
 
-// The old createVoteTopics(context), as an adapter over actions/VoteTopics.js for coverageGaps.test.
+// Test-facing adapter (see roomTx.js): the old createVoteTopics(context), over
+// actions/VoteTopics.js, for coverageGaps.test.
 
 /**
- * `context` is the app context. The runner is built when a vote resolves, as the old code did, so
- * a context without a store or hub yet is fine for checking options.
+ * `context` is the app context ({ store, hub, config, logger }). The runner is built when a vote
+ * resolves, as the old code did, so topics built from a context without a store can still check
+ * options. MakeHostAction only needs PlayerService, which reads no repository.
  */
 export function createVoteTopics(context) {
     const runner = {
@@ -14,9 +19,7 @@ export function createVoteTopics(context) {
             return createRoomActionRunner(context).runAsSystem(handler, roomId, body);
         },
     };
-    const makeHostHandler = {
-        allowedStatuses: makeHostAction.allowedStatuses,
-        handle: (work, body) => makeHostAction.run(work, body),
-    };
-    return createTopics({ runner, makeHostAction: makeHostHandler });
+    const playerService = new PlayerService({ roundService: new RoundService(), totalsService: new TotalsService() });
+    const makeHostAction = new MakeHostAction({ playerService });
+    return createTopicsForRunner({ runner, makeHostAction });
 }

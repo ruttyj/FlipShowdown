@@ -1,15 +1,14 @@
 import { createRoomActionRunner } from '../actions/createGameActions.js';
-import { CHAT_MESSAGE, OPEN_STATUSES, PLAYER, ROOM, ROUND_SCORE, SYSTEM_USER } from '../domain/entities.js';
-import { ActionError, badRequest } from '../domain/errors.js';
 
-// The game actions' original function API, as thin adapters over actions/: `tx` is a
-// RoomUnitOfWork and runRoomAction runs a RoomActionRunner. The action modules and tests still call
-// these; the services that replace the action modules (P3.2) call the classes directly.
+// gameActions/ holds only test-facing adapters: the old function API that tests and the root test
+// fixture import by path, each a thin wrapper over the classes in actions/ and services/.
+// Production code must not import this folder (eslint.config.js enforces it). Here: running an
+// action and the unit of work's writes, where `tx` is a RoomUnitOfWork.
 
-// Moved to domain/; re-exported so existing importers keep working.
-export { ActionError, CHAT_MESSAGE, OPEN_STATUSES, PLAYER, ROOM, ROUND_SCORE, SYSTEM_USER, badRequest };
+// Moved to domain/; re-exported for the tests that import them from here.
+export { PLAYER, ROOM, ROUND_SCORE } from '../domain/entities.js';
 
-// --- Unit of work adapters -----------------------------------------------
+// --- Unit of work ------------------------------------------------------------
 
 export function createChild(tx, entity, fields) {
     return tx.createChild(entity, fields);
@@ -24,52 +23,9 @@ export function deleteChild(tx, entity, record) {
     tx.deleteChild(entity, record);
 }
 
-/** Every record of `entity` whose room_id is the current room, oldest first. */
-export function listRoomChildren(tx, entity) {
-    return tx.listRoomChildren(entity);
-}
-
 /** The room's players sorted by turn_order. */
 export function listPlayers(tx) {
     return tx.listPlayers();
-}
-
-/** The caller's Player in the room, or null. */
-export function findCallerPlayer(tx) {
-    return tx.findCallerPlayer();
-}
-
-/** The room's Player with this id, or a 404 `player_not_found`. */
-export function getRoomPlayer(tx, playerId) {
-    return tx.getRoomPlayer(playerId);
-}
-
-/** See RoomUnitOfWork#insertRoom. */
-export function insertRoom(tx, fields) {
-    return tx.insertRoom(fields);
-}
-
-/** Stages room changes; they are written once, with the version bump, at the end of the action. */
-export function updateRoom(tx, changes) {
-    tx.updateRoom(changes);
-}
-
-/** See RoomUnitOfWork#flushRoom. */
-export function flushRoom(tx) {
-    tx.flushRoom();
-}
-
-/** Deletes the room record itself. Call flushRoom first so the version is final. */
-export function deleteRoomRecord(tx) {
-    tx.deleteRoomRecord();
-}
-
-/**
- * allowedStatuses: list of statuses, or null for any. Throws a 409 `wrong_status` otherwise. For
- * actions that check it themselves.
- */
-export function checkStatus(tx, allowedStatuses) {
-    tx.requireStatus(allowedStatuses);
 }
 
 // --- Running an action -------------------------------------------------------

@@ -805,7 +805,7 @@ function startTimers(context, { heartbeatIntervalMs, livenessCheckIntervalMs }) 
  *   now - clock in ms for presence liveness and vote countdowns (tests;
  *     defaults to Date.now)
  *   voteTopics - hold-to-vote topic registry, topic -> { validateOption,
- *     resolve, hostDecides } (see gameActions/voteTopics.js); none by default
+ *     resolve, hostDecides } (see actions/VoteTopics.js); none by default
  *   voteHoldMs - how long a vote must be held (tests; defaults to VOTE_HOLD_MS)
  *   hostOfflineGraceMs - how long the host must be offline before a vote can
  *     pass without them (defaults to HOST_OFFLINE_GRACE_MS)

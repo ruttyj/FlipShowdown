@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { describe, test } from 'node:test';
+import { after, before, describe, test } from 'node:test';
 import { CloseAction } from '../../../src/actions/rooms/CloseAction.js';
 import { CreateRoomAction } from '../../../src/actions/rooms/CreateRoomAction.js';
 import { DeleteRoomAction } from '../../../src/actions/rooms/DeleteRoomAction.js';
@@ -9,10 +9,11 @@ import { StartAction } from '../../../src/actions/rooms/StartAction.js';
 import { createRoomActions } from '../../../src/actions/rooms/index.js';
 import { OPEN_STATUSES } from '../../../src/domain/entities.js';
 import { ActionError } from '../../../src/domain/errors.js';
+import { api, devLogin, startTestServer } from '../../helpers.js';
 
 // The room action handlers on a fake RoomService: what each declares, how it parses the body and
-// which service method it calls with what, plus the by-code lookup's answers. RoomService.test
-// covers the rules themselves.
+// which service method it calls with what, plus the by-code lookup's answers and its route's
+// handling of an unexpected failure. RoomService.test covers the rules themselves.
 
 const WORK = { marker: 'the unit of work' };
 
@@ -190,5 +191,36 @@ describe('LookupByCodeAction', () => {
         };
 
         assert.throws(() => new LookupByCodeAction({ roomService }).lookup(USER, 'ABCDEF'), failure);
+    });
+});
+
+describe('GET /api/rooms/by-code/:code', () => {
+    let server;
+    let cookie;
+
+    before(async () => {
+        server = await startTestServer();
+        cookie = await devLogin(server.baseUrl, 'ann@example.com', 'Ann');
+    });
+
+    after(async () => {
+        await server.stop();
+    });
+
+    test('a store failure is a server error, not a missing room', async () => {
+        const rooms = server.instance.store.repositories.rooms;
+        const originalFindByCode = rooms.findByCode;
+        rooms.findByCode = () => {
+            throw new Error('disk on fire');
+        };
+
+        let response;
+        try {
+            response = await api(server.baseUrl, 'GET', '/api/rooms/by-code/ABCDEF', { cookie });
+        } finally {
+            rooms.findByCode = originalFindByCode;
+        }
+
+        assert.equal(response.status, 500);
     });
 });
