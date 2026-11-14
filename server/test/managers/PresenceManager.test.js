@@ -110,6 +110,8 @@ describe('PresenceManager', () => {
         });
 
         test('only live, explicit subscriptions make a player online', () => {
+            // The admin plays in r1 here too, so a "*" socket counting as online would show.
+            players.push({ id: 'admin-1', room_id: 'r1', email: ADMIN });
             const ann = subscribe(ANN, ['r1']);
             ann.isLive = false;
             subscribe(ADMIN, ['*']);
@@ -117,7 +119,7 @@ describe('PresenceManager', () => {
 
             presence.refresh('r1');
 
-            assert.deepEqual(presence.playersOf('r1').map((player) => player.online), [false, false]);
+            assert.deepEqual(presence.playersOf('r1').map((player) => player.online), [false, false, false]);
             assert.equal(presence.hasPlayersOnline('r1'), false);
             assert.deepEqual(bobElsewhere.sent, []);
         });
@@ -191,6 +193,17 @@ describe('PresenceManager', () => {
                 roomsLive: 1,
                 rooms: [{ code: 'AB12CD', status: 'playing', round: 1, maxScore: 200, online: 1, players: 2 }],
             });
+        });
+
+        test('buildRoomStats counts a person once and leaves out stale and "*" sockets', () => {
+            players.push({ id: 'admin-1', room_id: 'r1', email: ADMIN });
+            subscribe(ANN, ['r1']);
+            subscribe(ANN, ['r1']);
+            const bob = subscribe(BOB, ['r1']);
+            bob.isLive = false;
+            subscribe(ADMIN, ['*']);
+
+            assert.equal(presence.buildRoomStats().playersOnline, 1);
         });
     });
 });

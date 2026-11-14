@@ -116,7 +116,11 @@ export class EventPublisher {
 
     /** Sends the socket every stored event after `lastSeq` that it may receive, oldest first. */
     replay(socket, lastSeq) {
-        const roomIds = socket.allRooms ? null : [...socket.rooms];
+        // null reads every room's events; canReceive below still filters what a "*" socket gets.
+        let roomIds = null;
+        if (!this.subscriptions.watchesAllRooms(socket)) {
+            roomIds = [...this.subscriptions.roomsOf(socket)];
+        }
         for (const row of this.eventLog.readAfter(lastSeq, roomIds)) {
             if (this.subscriptions.canReceive(socket, row.room_id, row.entity)) {
                 this.connections.send(socket, row.text);

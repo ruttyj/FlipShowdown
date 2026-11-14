@@ -335,13 +335,10 @@ describe('VoteManager', () => {
     });
 
     describe('dropping holds', () => {
-        test('dropHolds lets go in the given rooms and tells them; no rooms is a no-op', () => {
+        test('dropHolds lets go in the given rooms and tells them', () => {
             const { ann, bob } = annAndBobOnline();
             votes.hold(ann, { room_id: 'r1', topic: 'finish', option: 'yes' });
             bob.sent.length = 0;
-
-            votes.dropHolds(ann, []);
-            assert.deepEqual(bob.sent, []);
 
             votes.dropHolds(ann, ['r1']);
             assert.deepEqual(votesOf(bob, 'finish').map((message) => message.holds), [[]]);

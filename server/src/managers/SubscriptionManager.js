@@ -122,9 +122,19 @@ export class SubscriptionManager {
 
     // --- Membership and access ---------------------------------------------------
 
+    /** Whether hello has set the socket's position, so it receives events. */
+    isSubscribed(socket) {
+        return socket.isSubscribed;
+    }
+
     /** The rooms the socket named itself (a Set; empty before hello and for "*" alone). */
     roomsOf(socket) {
         return socket.rooms;
+    }
+
+    /** Whether the socket is an admin's watching every room through "*". */
+    watchesAllRooms(socket) {
+        return socket.allRooms;
     }
 
     /** Whether this (normalised) email has a Player in the room. */

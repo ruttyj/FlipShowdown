@@ -1,30 +1,23 @@
+import { EventEmitter } from 'node:events';
 import { WebSocketServer } from 'ws';
-import {
-    CLIENT_MESSAGE,
-    REALTIME_PATH,
-    SERVER_MESSAGE,
-    VOTE_HOLD_MS,
-} from '../../../shared/realtimeProtocol.js';
+import { CLIENT_MESSAGE, REALTIME_PATH, SERVER_MESSAGE } from '../../../shared/realtimeProtocol.js';
 import { Clock } from '../domain/clock.js';
-import {
-    ConnectionManager,
-    HEARTBEAT_INTERVAL_MS,
-    LIVENESS_CHECK_INTERVAL_MS,
-} from '../managers/ConnectionManager.js';
+import { ConnectionManager } from '../managers/ConnectionManager.js';
 import { EntryStatusManager } from '../managers/EntryStatusManager.js';
 import { EventPublisher } from '../managers/EventPublisher.js';
 import { Lifecycle } from '../managers/Lifecycle.js';
 import { PresenceManager } from '../managers/PresenceManager.js';
+import { STATS_CHANGED } from '../managers/roomStats.js';
 import { SubscriptionManager } from '../managers/SubscriptionManager.js';
 import { VoteManager } from '../managers/VoteManager.js';
-import { HOST_OFFLINE_GRACE_MS } from '../managers/votes.js';
 
 // The realtime hub: the WebSocket endpoint and the composition of the realtime managers.
 // Sockets, liveness and timers are the ConnectionManager's; who listens to which room is the
 // SubscriptionManager's; the event log, fan-out and replay are the EventPublisher's; who is online
 // is the PresenceManager's; hold-to-vote is the VoteManager's and who is entering cards the
 // EntryStatusManager's. The Lifecycle guards every callback and stops them all on close. The client
-// message handlers below only route to the managers.
+// message handlers below only route to the managers. `statsEvents` emits STATS_CHANGED whenever
+// the launcher's room stats may have changed (X66).
 
 const MAX_CLIENT_MESSAGE_BYTES = 16 * 1024;
 
@@ -99,15 +92,15 @@ function sendRoomStates(context, socket, roomIds) {
 /**
  * What follows a publish, once its events have gone out: the published rooms' entry status is
  * reconciled (so a client hears "Sam submitted" before the banner drops), and a GameRoom change
- * marks the launcher's stats as changed, since a room's status, round and max score show in its
- * row (X66). `published` is EventPublisher#publishAll's result.
+ * emits STATS_CHANGED, since a room's status, round and max score show in its launcher row (X66).
+ * `published` is EventPublisher#publishAll's result.
  */
 function afterPublish(context, published) {
     const roomIds = new Set(published.map((entry) => entry.roomId));
     context.entries.reconcileRooms(roomIds);
 
     if (published.some((entry) => entry.entity === 'GameRoom')) {
-        context.onStatsChanged();
+        context.statsEvents.emit(STATS_CHANGED);
     }
 }
 
@@ -168,7 +161,7 @@ function handleHello(context, socket, message) {
 
 function handleRooms(context, socket, message) {
     // A room list only makes sense once hello has set the socket's position.
-    if (!socket.isSubscribed) {
+    if (!context.subscriptions.isSubscribed(socket)) {
         return;
     }
 
@@ -230,9 +223,9 @@ function createContext({
     hostOfflineGraceMs,
     heartbeatIntervalMs,
     livenessCheckIntervalMs,
-    onStatsChanged,
 }) {
     const clock = new Clock(now);
+    const statsEvents = new EventEmitter();
     const lifecycle = new Lifecycle({ logger });
     const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_CLIENT_MESSAGE_BYTES });
     const { rooms, players } = createStoreViews(store);
@@ -252,7 +245,9 @@ function createContext({
         clock,
         connections,
         subscriptions,
-        onStatsChanged,
+        onStatsChanged: () => {
+            statsEvents.emit(STATS_CHANGED);
+        },
         // Every presence refresh ends in a vote refresh, since the voters are the online players.
         // `votes` is only built below, but no refresh can run before the hub is returned.
         onRefreshed: (roomId, presencePlayers, options) => {
@@ -283,7 +278,7 @@ function createContext({
         presence,
         votes,
         entries,
-        onStatsChanged,
+        statsEvents,
     };
 }
 
@@ -300,9 +295,14 @@ function createContext({
  *   voteHoldMs - how long a vote must be held (tests; defaults to VOTE_HOLD_MS)
  *   hostOfflineGraceMs - how long the host must be offline before a vote can
  *     pass without them (defaults to HOST_OFFLINE_GRACE_MS)
- *   onStatsChanged() - called when presence or a GameRoom changed, so the
- *     launcher's room stats may have (X66); app.js passes the launcher
- *     reporter's markChanged
+ *   heartbeatIntervalMs, livenessCheckIntervalMs - the ConnectionManager's
+ *     timers (tests; default to HEARTBEAT_INTERVAL_MS and
+ *     LIVENESS_CHECK_INTERVAL_MS)
+ *   onStatsChanged() - optional listener for the hub's statsEvents
+ *     STATS_CHANGED: presence or a GameRoom changed, so the launcher's room
+ *     stats may have (X66). app.js hands statsEvents to the LauncherReporter.
+ * The defaults live in the managers (votes.js, ConnectionManager.js); the hub
+ * passes undefined through to them.
  */
 export function createRealtimeHub({
     authenticate,
@@ -311,11 +311,11 @@ export function createRealtimeHub({
     logger = console,
     now = Date.now,
     voteTopics = {},
-    voteHoldMs = VOTE_HOLD_MS,
-    hostOfflineGraceMs = HOST_OFFLINE_GRACE_MS,
-    heartbeatIntervalMs = HEARTBEAT_INTERVAL_MS,
-    livenessCheckIntervalMs = LIVENESS_CHECK_INTERVAL_MS,
-    onStatsChanged = () => {},
+    voteHoldMs,
+    hostOfflineGraceMs,
+    heartbeatIntervalMs,
+    livenessCheckIntervalMs,
+    onStatsChanged,
 }) {
     const context = createContext({
         store,
@@ -327,8 +327,10 @@ export function createRealtimeHub({
         hostOfflineGraceMs,
         heartbeatIntervalMs,
         livenessCheckIntervalMs,
-        onStatsChanged,
     });
+    if (onStatsChanged) {
+        context.statsEvents.on(STATS_CHANGED, onStatsChanged);
+    }
 
     context.wss.on('connection', (socket) => setUpSocket(context, socket));
     context.connections.startTimers(() => runPeriodicChecks(context));
@@ -377,6 +379,11 @@ export function createRealtimeHub({
             return context.publisher.seq;
         },
 
+        /** An EventEmitter that emits STATS_CHANGED (roomStats.js) when the launcher's stats may have changed. */
+        get statsEvents() {
+            return context.statsEvents;
+        },
+
         attach(server) {
             server.on('upgrade', (request, socket, head) => {
                 handleUpgrade(request, socket, head).catch((error) => {
@@ -388,8 +395,8 @@ export function createRealtimeHub({
 
         /**
          * Stores entity changes in the event log and sends each to the sockets subscribed to its
-         * room (EventPublisher#publishAll), then updates the published rooms' entry status and
-         * the launcher's stats. `events` is [{ entity, type, record }]; `roomVersion` is the
+         * room (EventPublisher#publishAll), then updates the published rooms' entry status and,
+         * for a GameRoom change, emits STATS_CHANGED. `events` is [{ entity, type, record }]; `roomVersion` is the
          * room's version after the action that produced them (null for generic entity writes).
          * Throws only when storing fails, and then sends nothing.
          */

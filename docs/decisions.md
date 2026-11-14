@@ -149,7 +149,7 @@ New decisions get the next X number (the last used is X89).
   (or creation, with none yet) is older than `STALE_ROOM_HOURS` (default 24, `0` = off) are deleted like the
   host's `delete`: published as closed, then removed with their players, scores and chat. A room with any
   player online is skipped however long it has idled, so a table that stopped playing keeps its room while the
-  page is open. A room that fails to delete is logged and skipped. The sweep is in `server/src/managers/staleRooms.js`.
+  page is open. A room that fails to delete is logged and skipped. The sweep is `server/src/managers/RoomSweepManager.js`.
 
 ## Game modes
 
@@ -634,11 +634,12 @@ New decisions get the next X number (the last used is X89).
     `LIVE_WINDOW_MS`) explicitly subscribed to a room they're a player in, so admin "*" sockets, hidden
     tabs and people on the web app's home screen don't count, and two tabs or devices count once. A room
     is in play when it isn't `closed` and at least one of its players is online. Only room codes reach
-    the launcher, never room ids or emails (`server/src/managers/roomStats.js`).
+    the launcher, never room ids or emails (`server/src/managers/roomStats.js`; the online rule, shared
+    with presence, is `onlineSockets.js`).
   - *Transport*: the server pushes `{ type: 'room-stats', stats }` over Electron's utility-process
     parent port (`shared/launcherMessages.js`; desktop main keeps a checked copy, as app.asar has no
-    `shared/`). The hub marks stats changed when a room's presence or a `GameRoom` changes; the reporter
-    builds them at most once a second (trailing, 1000 ms) and sends only when they differ. It sends
+    `shared/`). The hub's `statsEvents` emits `statsChanged` when a room's presence or a `GameRoom`
+    changes; the `LauncherReporter` listens for it and builds them at most once a second (trailing, 1000 ms) and sends only when they differ. It sends
     0 / 0 as soon as the server listens. Without a parent port (Docker, `npm run dev`) it does nothing.
   - *Main* caches the latest stats and forwards them (`launcher:room-stats`) only while the window is
     visible, sending the cache once on show or restore; `launcher:get-room-stats` answers from the cache.

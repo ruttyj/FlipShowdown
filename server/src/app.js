@@ -10,9 +10,10 @@ import { createAuthApiRouter, createLoginRouter, createRequireUser } from './htt
 import { openStore } from './database/db.js';
 import { createEntitiesRouter } from './http/entities.js';
 import { createRoomsRouter } from './http/roomsRoutes.js';
-import { createLauncherReporter } from './managers/launcherReporter.js';
+import { Clock } from './domain/clock.js';
+import { LauncherReporter } from './managers/LauncherReporter.js';
+import { RoomSweepManager } from './managers/RoomSweepManager.js';
 import { createRealtimeHub } from './realtime/hub.js';
-import { createStaleRoomSweeper } from './managers/staleRooms.js';
 
 const JSON_BODY_LIMIT = '1mb';
 const ONE_YEAR_SECONDS = 365 * 24 * 60 * 60;
@@ -143,15 +144,15 @@ export function createServer(config, options = {}) {
         }),
         voteHoldMs: options.voteHoldMs,
         hostOfflineGraceMs: config.hostOfflineGraceMs ?? undefined,
-        onStatsChanged: () => reporter.markChanged(),
     });
     context.hub = hub;
-    const reporter = createLauncherReporter({
+    const reporter = new LauncherReporter({
         // undefined means Electron's process.parentPort; tests pass a fake or null.
         parentPort: options.launcherPort,
         buildStats: () => hub.buildRoomStats(),
         delayMs: options.launcherReportDelayMs,
         logger,
+        statsEvents: hub.statsEvents,
     });
 
     const app = express();
@@ -182,12 +183,15 @@ export function createServer(config, options = {}) {
     hub.attach(server);
     // The launcher shows 0 / 0 as soon as the server is up, not after the first change (X66).
     server.on('listening', () => reporter.sendNow());
-    const sweeper = createStaleRoomSweeper({
-        context,
+    const sweeper = new RoomSweepManager({
+        rooms: store.repositories.rooms,
+        // The hub, so hasPlayersOnline is read through it at call time.
+        presence: hub,
         runner: roomActions.runner,
         deleteAction,
+        clock: new Clock(options.roomSweepNow),
+        logger,
         maxIdleMs: config.staleRoomMaxIdleMs,
-        now: options.roomSweepNow,
     });
     server.on('listening', () => sweeper.start());
 

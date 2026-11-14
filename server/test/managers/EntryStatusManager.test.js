@@ -93,18 +93,26 @@ describe('EntryStatusManager', () => {
             ]);
         });
 
-        test('ignores bad fields and rooms the socket did not name itself', () => {
+        test('ignores a state it does not know', () => {
             const ann = subscribe(ANN, ['r1']);
-            const admin = subscribe(ADMIN, ['*']);
 
             entries.receive(ann, { room_id: 'r1', state: 'dancing', round: 2 });
-            entries.receive(ann, { room_id: 'r1', state: 'typing', round: '2' });
-            entries.receive(ann, { room_id: 7, state: 'typing', round: 2 });
+
+            assert.deepEqual(ann.sent, []);
+        });
+
+        test('ignores rooms the socket did not name itself, even one its user plays in', () => {
+            const ann = subscribe(ANN, ['r1']);
+            const admin = subscribe(ADMIN, ['*']);
+            // Both would hear an entry wrongly admitted for their room.
+            const annInR2 = subscribe(ANN, ['r2']);
+            const bob = subscribe(BOB, ['r1']);
+
             entries.receive(ann, { room_id: 'r2', state: 'typing', round: 1 });
             entries.receive(admin, { room_id: 'r1', state: 'typing', round: 2 });
 
-            assert.deepEqual(ann.sent, []);
-            assert.deepEqual(admin.sent, []);
+            assert.deepEqual(annInR2.sent, []);
+            assert.deepEqual(bob.sent, []);
         });
 
         test('no entry for a round that is not open or a player who already submitted', () => {

@@ -1,9 +1,10 @@
 import { SERVER_MESSAGE } from '../../../shared/realtimeProtocol.js';
+import { countPeopleOnline, onlineEmailsIn } from './onlineSockets.js';
 import { summariseRoomStats } from './roomStats.js';
 
 // Who is online in each room, and the `presence` message that tells the room. A player is online
-// while one of their live sockets explicitly subscribes to the room; an admin "*" socket is
-// watching, not playing. The last presence sent is cached per room, for as long as anyone
+// while one of their live sockets explicitly subscribes to the room (onlineSockets.js); an admin
+// "*" socket is watching, not playing. The last presence sent is cached per room, for as long as anyone
 // subscribes to it, to spot changes, and it is what the votes, the launcher's stats and the stale
 // room sweep read.
 //
@@ -94,24 +95,13 @@ export class PresenceManager {
         }
     }
 
-    /**
-     * Emails with a live socket explicitly subscribed to the room. Admin "*" sockets are
-     * watching, not playing, so they don't make anyone online.
-     */
-    #onlineEmails(roomId) {
-        const emails = new Set();
-        for (const socket of this.connections.clients) {
-            const isOnlineHere = this.subscriptions.isExplicitlySubscribed(socket, roomId)
-                && this.connections.isLive(socket);
-            if (isOnlineHere) {
-                emails.add(socket.identity.email);
-            }
-        }
-        return emails;
+    /** The managers onlineSockets.js reads the sockets through. */
+    #socketManagers() {
+        return { connections: this.connections, subscriptions: this.subscriptions };
     }
 
     #buildPlayers(roomId) {
-        const online = this.#onlineEmails(roomId);
+        const online = onlineEmailsIn(this.#socketManagers(), roomId);
         const players = [];
         for (const player of this.players.listByRoom(roomId)) {
             players.push({
@@ -167,7 +157,7 @@ export class PresenceManager {
         return summariseRoomStats({
             getRoom: (roomId) => this.rooms.get(roomId),
             presence: this.cache,
-            clients: this.connections.clients,
+            playersOnline: countPeopleOnline(this.#socketManagers()),
         });
     }
 }
