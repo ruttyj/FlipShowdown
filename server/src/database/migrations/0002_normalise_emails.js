@@ -6,7 +6,7 @@
 //   rewritten, so they still match their user.
 // Players refer to users by email at this version, so the merge needs no other re-pointing.
 
-/** Frozen copy of canonicalEmail in src/email.js (migrations never import from src/). */
+/** Frozen copy of canonicalEmail in src/lib/email.js (migrations never import from src/). */
 function canonical(email) {
     return email.trim().toLowerCase();
 }

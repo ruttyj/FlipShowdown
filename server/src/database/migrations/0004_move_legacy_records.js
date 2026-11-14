@@ -16,7 +16,7 @@ import crypto from 'node:crypto';
 // Afterwards `records` keeps only the other entities' rows (those added through ENTITIES).
 // Frozen: never edit a migration that has shipped, and never import from src/.
 
-// --- Frozen copy of the table specs (src/entityTables.js at this version) ---------
+// --- Frozen copy of the table specs (src/database/entityTables.js at this version) ---------
 
 const GAME_ROOM = {
     entity: 'GameRoom',

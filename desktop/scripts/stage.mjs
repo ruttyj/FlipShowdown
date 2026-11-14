@@ -1,6 +1,6 @@
 // Stages what the launcher runs from source into desktop/build:
 //   build/server  server/src plus production node_modules, better-sqlite3 rebuilt for Electron
-//   build/shared  the rule kernel, which server/src imports as ../../shared
+//   build/shared  the rule kernel, which server/src imports as ../../../shared
 //   build/dist    the built client (run `npm run build` at the root first)
 //
 // A copy, not links: a utility process given the repo's live server/ resolves better-sqlite3

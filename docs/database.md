@@ -15,7 +15,7 @@ the API side is in [backend-contract.md](backend-contract.md#entities).
 | Foreign keys | `ON` for the store's connection; `OFF` only while migrations run |
 | Schema | Numbered migrations, recorded in `schema_migrations` (see [Migrations](#migrations)) |
 | Store API | `openStore()` in `server/src/database/db.js` keeps the record-shaped API the routes always had (`listRecords`, `findRecords`, `createRecords`, ...), over typed tables for the four game entities and a JSON `records` table for everything else |
-| Code | `db.js` (connection, store), `entityTables.js` (table specs, row codec, `StoreError`), `migrate.js` + `migrations/` (schema), `email.js` (canonical emails), `backup.js` (copies), `eventLog.js` (`events`/`meta`), `staleRooms.js` (sweep) |
+| Code | In `server/src/database/`: `db.js` (connection, store), `entityTables.js` (table specs, row codec, `toStoreError`), `migrate.js` + `migrations/` (schema), `backup.js` (copies), `eventLog.js` (`events`/`meta`). Elsewhere: `domain/errors.js` (`StoreError`), `lib/email.js` (canonical emails), `managers/staleRooms.js` (sweep) |
 
 ## Diagrams
 
@@ -215,10 +215,12 @@ classDiagram
         +snapshotDatabase(db, destination)
         +backupDatabase(dataDir, options)
     }
+    note for StoreError "server/src/domain/errors.js"
     class email_js {
         +canonicalEmail(value)
         +normaliseEmail(value)
     }
+    note for email_js "server/src/lib/email.js"
     class eventLog_js {
         +createEventLog(db, options)
     }
@@ -242,9 +244,9 @@ classDiagram
 ```mermaid
 sequenceDiagram
     participant App as app.js
-    participant Db as db.js
-    participant Runner as migrate.js
-    participant Backup as backup.js
+    participant Db as database/db.js
+    participant Runner as database/migrate.js
+    participant Backup as database/backup.js
     participant File as flip7.db
 
     App->>Db: openStore(dataDir)
@@ -378,7 +380,7 @@ foreign keys: the game code keeps them current, and chat outlives the players wh
 | Table | Columns | Constraints and indexes | Used by |
 | --- | --- | --- | --- |
 | `records` | `seq` INTEGER PK autoincrement, `entity`, `id`, `data` (JSON) TEXT NOT NULL, `created_date`, `updated_date` NOT NULL, `created_by` | UNIQUE `records_entity_id (entity, id)`; `records_room_id (entity, json_extract(data, '$.room_id'))` | Entities added through `ENTITIES` (not the four game entities) |
-| `events` | `seq` INTEGER PK, `room_id` TEXT, `entity` TEXT NOT NULL, `text` TEXT NOT NULL | | Realtime replay log (`eventLog.js`), trimmed to the newest 5000 |
+| `events` | `seq` INTEGER PK, `room_id` TEXT, `entity` TEXT NOT NULL, `text` TEXT NOT NULL | | Realtime replay log (`database/eventLog.js`), trimmed to the newest 5000 |
 | `meta` | `key` TEXT PK, `value` TEXT NOT NULL | | `epoch` for the event log |
 | `schema_migrations` | `version` INTEGER PK, `name` TEXT NOT NULL, `applied_at` TEXT NOT NULL | | Migration runner |
 | `legacy_orphans` | the old `records` columns, `seq` as PK, plus `reason` and `moved_date` TEXT NOT NULL | | Rows 0004 couldn't move; `reason` is `missing_room`, `missing_player`, `no_user` or `duplicate_member` (X87) |
@@ -388,7 +390,7 @@ The `records_room_id` expression index is only used when a query spells
 
 ## How records map to rows
 
-`entityTables.js` holds one spec per game entity (`table`, `columns` with a kind, `userRef`) and the
+`server/src/database/entityTables.js` holds one spec per game entity (`table`, `columns` with a kind, `userRef`) and the
 pure codec; `db.js` runs the SQL. Records keep the shape they had as JSON rows (X83).
 
 | Concern | Rule |
@@ -449,7 +451,7 @@ To add a migration:
 1. Create `server/src/database/migrations/NNNN_name.js` (next four-digit number) exporting `up(db)`.
 2. Keep it self-contained: no imports from `server/src/`; copy any spec it needs and freeze it.
 3. Register it in `migrations/index.js` (`migrate.test.js` fails if the folder and list differ).
-4. If it changes a game table, update the spec in `entityTables.js` to match.
+4. If it changes a game table, update the spec in `database/entityTables.js` to match.
 5. Never edit a migration that has shipped; add a new one.
 6. Test it on a legacy fixture first ([testing.md](testing.md)), and record the decision in
    [decisions.md](decisions.md).

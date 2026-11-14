@@ -81,7 +81,7 @@ function countOnline(presencePlayers) {
 
 /**
  * People, not tabs: one email with a phone and a laptop open counts once. Like onlineEmails() in
- * realtime.js, only explicit room subscriptions count, so admin "*" sockets don't.
+ * realtime/hub.js, only explicit room subscriptions count, so admin "*" sockets don't.
  */
 function countPeopleOnline(sockets) {
     const emails = new Set();
