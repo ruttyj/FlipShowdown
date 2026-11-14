@@ -32,4 +32,13 @@ describe('ActionRegistry', () => {
         assert.throws(() => registry.add('start', handler('signed_in')), /Action already registered: start/);
         assert.equal(registry.get('start'), first);
     });
+
+    test('require gives the handler, and throws for an unknown name', () => {
+        const registry = new ActionRegistry();
+        const join = handler('signed_in');
+        registry.add('join', join);
+
+        assert.equal(registry.require('join'), join);
+        assert.throws(() => registry.require('leave'), /Action not registered: leave/);
+    });
 });

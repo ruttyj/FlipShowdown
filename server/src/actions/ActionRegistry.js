@@ -17,4 +17,16 @@ export class ActionRegistry {
     get(name) {
         return this.#handlers.get(name) ?? null;
     }
+
+    /**
+     * The handler registered under `name`. Throws when there is none, so wiring that needs a
+     * handler fails when the server is built, not at the first request that uses it.
+     */
+    require(name) {
+        const handler = this.get(name);
+        if (!handler) {
+            throw new Error(`Action not registered: ${name}`);
+        }
+        return handler;
+    }
 }

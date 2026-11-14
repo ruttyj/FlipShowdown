@@ -127,6 +127,10 @@ export function createServer(config, options = {}) {
     const context = { config, store, authenticator, logger, hub: null, entities: config.entities };
     // One set of services, handlers and runner for the rooms router, the vote topics and the sweep.
     const roomActions = createGameActions(context);
+    // Resolved once here, so a renamed action stops the server from starting instead of failing
+    // at the first vote or sweep.
+    const makeHostAction = roomActions.registry.require('make-host');
+    const deleteAction = roomActions.registry.require('delete');
     const hub = createRealtimeHub({
         authenticate: (headers) => authenticator.authenticate(headers),
         store,
@@ -135,7 +139,7 @@ export function createServer(config, options = {}) {
         now: options.realtimeNow,
         voteTopics: createVoteTopics({
             runner: roomActions.runner,
-            makeHostAction: roomActions.registry.get('make-host'),
+            makeHostAction,
         }),
         voteHoldMs: options.voteHoldMs,
         hostOfflineGraceMs: config.hostOfflineGraceMs ?? undefined,
@@ -181,7 +185,7 @@ export function createServer(config, options = {}) {
     const sweeper = createStaleRoomSweeper({
         context,
         runner: roomActions.runner,
-        deleteAction: roomActions.registry.get('delete'),
+        deleteAction,
         maxIdleMs: config.staleRoomMaxIdleMs,
         now: options.roomSweepNow,
     });

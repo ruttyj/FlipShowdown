@@ -21,7 +21,10 @@ import { createScoringActions } from './scoring/index.js';
 export function createServices(repositories) {
     const totalsService = new TotalsService();
     const roundService = new RoundService();
-    const roomService = new RoomService({ roomRepository: repositories.rooms, playerRepository: repositories.players });
+    const roomService = new RoomService({
+        roomRepository: repositories.rooms,
+        playerRepository: repositories.players,
+    });
     return {
         roomService,
         playerService: new PlayerService({ roundService, totalsService }),

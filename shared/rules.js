@@ -2,7 +2,7 @@
 // and the server both import this file, so it holds no words for players, styling, browser or Node
 // APIs, and it imports nothing. The client's registry (src/lib/gameRules.js) adds a mode's words and looks.
 //
-// The client scores hands and the server trusts the result (server/src/gameActions/scoring.js). The
+// The client scores hands and the server trusts the result (server/src/services/ScoringService.js). The
 // server only calls isFlip7Hand, because an attack moves another player's score.
 
 // --- Facts --------------------------------------------------------------------

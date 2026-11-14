@@ -44,8 +44,9 @@ function nextTurnPlayer(room, orderedPlayers) {
 export class RoundService {
     /**
      * Turns edit mode off. Edit mode holds the round check, so callers follow this with the round
-     * check, an advance or a finish. It lives here rather than in PlayerService, which uses it for a host change,
-     * because finishGame needs it too and PlayerService already depends on this service.
+     * check, an advance or a finish. It lives here rather than in PlayerService, which uses it for
+     * a host change, because finishGame needs it too and PlayerService already depends on this
+     * service.
      */
     clearEditMode(work) {
         work.updateRoom({ is_edit_mode: false, edit_mode_by: null });
