@@ -15,8 +15,8 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { loadConfig } from '../../server/src/config.js';
-import { openStore } from '../../server/src/db.js';
+import { loadConfig } from '../../server/src/config/config.js';
+import { openStore } from '../../server/src/database/db.js';
 import { ACTIONS } from '../../server/src/gameActions/index.js';
 import { createRoom, lookupRoomByCode } from '../../server/src/gameActions/rooms.js';
 import { runRoomAction } from '../../server/src/gameActions/roomTx.js';

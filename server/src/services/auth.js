@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
-import { normaliseEmail } from './email.js';
+import { normaliseEmail } from '../lib/email.js';
 
 // Re-exported so the modules that validate emails through auth.js keep their imports.
 export { normaliseEmail };

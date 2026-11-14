@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import colors from 'tailwindcss/colors.js';
-import { SCAN_MODE_IDS } from '../server/src/scanModes.js';
+import { SCAN_MODE_IDS } from '../server/src/services/ai/scanModes.js';
 import { calculateFlip7Score } from '../src/lib/flip7Scoring.js';
 import {
     GAME_MODES,

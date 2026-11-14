@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
-import { paginate, parseListQuery, QueryError, sortEntries } from '../src/query.js';
+import { paginate, parseListQuery, QueryError, sortEntries } from '../src/lib/query.js';
 
 function entriesOf(records) {
     return records.map((record, index) => ({ seq: index, record }));

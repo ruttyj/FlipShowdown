@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
-import { roomGameMode } from '../src/gameModes.js';
+import { roomGameMode } from '../src/config/gameModes.js';
 import { api, devLogin, startTestServer } from './helpers.js';
 
 describe('game modes (X41)', () => {

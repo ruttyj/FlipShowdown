@@ -12,7 +12,7 @@ import {
     summariseModel,
 } from '../eval/scanEval.js';
 import { readImageSize } from '../eval/imageSize.js';
-import { GeminiError } from '../src/gemini.js';
+import { GeminiError } from '../src/services/ai/gemini.js';
 
 // The eval script is run by hand with real photos. These tests cover everything but the real call,
 // so the numbers it reports can be trusted. Nothing here reaches the network.

@@ -1,6 +1,6 @@
 import express from 'express';
-import { StoreError } from './entityTables.js';
-import { QueryError, isPlainObject, matchesFilter, paginate, parseListQuery, sortEntries } from './query.js';
+import { StoreError } from '../database/entityTables.js';
+import { QueryError, isPlainObject, matchesFilter, paginate, parseListQuery, sortEntries } from '../lib/query.js';
 
 // Routes under /api/entities. Mounted after requireUser, so req.user is set.
 

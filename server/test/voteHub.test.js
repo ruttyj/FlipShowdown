@@ -4,8 +4,8 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { after, before, describe, test } from 'node:test';
-import { openStore } from '../src/db.js';
-import { createRealtimeHub } from '../src/realtime.js';
+import { openStore } from '../src/database/db.js';
+import { createRealtimeHub } from '../src/realtime/hub.js';
 import { connectRealtime, silentLogger } from './helpers.js';
 
 // The hub's vote handling with a stub topic, so a passed vote's action can fail.

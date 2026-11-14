@@ -1,4 +1,5 @@
-import { normaliseEmail } from './email.js';
+import { StoreError } from '../domain/errors.js';
+import { normaliseEmail } from '../lib/email.js';
 
 // How the four game entities map onto their tables (migration 0003), and the conversion between
 // an API record and a table row. db.js runs the SQL; this module is pure.
@@ -11,21 +12,8 @@ import { normaliseEmail } from './email.js';
 
 // --- Errors ------------------------------------------------------------------
 
-/**
- * A write the database refused, or a value of the wrong type. `status` is 400 (`invalid_record`)
- * or 409 (`conflict`); the routes answer with `toBody()`.
- */
-export class StoreError extends Error {
-    constructor(status, code, message) {
-        super(message);
-        this.status = status;
-        this.code = code;
-    }
-
-    toBody() {
-        return { message: this.message, code: this.code };
-    }
-}
+// StoreError moved to domain/errors.js; re-exported so existing importers keep working.
+export { StoreError };
 
 function invalidRecord(message) {
     return new StoreError(400, 'invalid_record', message);

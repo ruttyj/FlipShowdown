@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
-import { normaliseName } from '../auth.js';
+import { normaliseName } from '../services/auth.js';
 import { DEFAULT_GAME_MODE, isKnownGameMode } from '../../../shared/rules.js';
-import { roomGameMode } from '../gameModes.js';
+import { roomGameMode } from '../config/gameModes.js';
 import { newPlayerFields } from './players.js';
 import {
     CHAT_MESSAGE,

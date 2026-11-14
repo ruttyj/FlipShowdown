@@ -1,8 +1,8 @@
 import express from 'express';
-import { createModelCatalog } from './aiModels.js';
-import { GeminiError, createGeminiClient } from './gemini.js';
-import { isPlainObject } from './query.js';
-import { buildScanRequest, getScanMode, normaliseScanResult } from './scanModes.js';
+import { createModelCatalog } from '../services/ai/aiModels.js';
+import { GeminiError, createGeminiClient } from '../services/ai/gemini.js';
+import { isPlainObject } from '../lib/query.js';
+import { buildScanRequest, getScanMode, normaliseScanResult } from '../services/ai/scanModes.js';
 
 // Routes under /api/ai. Mounted after requireUser, so req.user is set.
 // The Gemini key stays on the server: browsers only ever see model ids and card lists.

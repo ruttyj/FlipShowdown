@@ -4,9 +4,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, test } from 'node:test';
 import Database from 'better-sqlite3';
-import { openStore } from '../src/db.js';
-import { runMigrations } from '../src/migrate.js';
-import { MIGRATIONS } from '../src/migrations/index.js';
+import { openStore } from '../src/database/db.js';
+import { runMigrations } from '../src/database/migrate.js';
+import { MIGRATIONS } from '../src/database/migrations/index.js';
 import { createLegacyDb } from './fixtures/legacyDb.js';
 
 // Upgrading a database written before migrations existed, through 0001 and 0002. These stop at

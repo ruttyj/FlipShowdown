@@ -21,7 +21,7 @@ const MAX_PENDING_CHARS = 64 * 1024;
 // that file (main lives in app.asar, without shared/), so test/serverProcess.test.js checks this copy.
 export const ROOM_STATS_MESSAGE = 'room-stats';
 
-// Server settings the launcher owns (server/src/config.js reads them). A value inherited from the
+// Server settings the launcher owns (server/src/config/config.js reads them). A value inherited from the
 // launcher's own environment, such as a GEMINI_API_KEY a developer set for `npm run share`, would
 // otherwise override what the user chose in Settings.
 const SERVER_CONFIG_KEYS = [

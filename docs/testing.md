@@ -285,7 +285,7 @@ code changes on every run.
   belong to no room, use another entity (`Note`, through `ENTITIES`), which stays a JSON row.
 - Every file under `server/test/` runs as a test file (`node --test` matches `test/` folders), helpers
   and fixtures included, so they must do nothing when imported.
-- For raw SQL in a server test, open the database with `openDatabase(dir)` from `server/src/db.js`: it
+- For raw SQL in a server test, open the database with `openDatabase(dir)` from `server/src/database/db.js`: it
   runs the migrations and turns foreign keys on, as the store does. Migrations never import `src/`, and
   every `NNNN_name.js` must be registered in `migrations/index.js` (`migrate.test.js` checks).
 - Migration 0002 trims and lower-cases emails before 0004 reads them, so a legacy fixture's `' '` email

@@ -7,8 +7,8 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, test } from 'node:test';
 import Database from 'better-sqlite3';
-import { backupDatabase } from '../src/backup.js';
-import { openStore } from '../src/db.js';
+import { backupDatabase } from '../src/database/backup.js';
+import { openStore } from '../src/database/db.js';
 
 // `npm run backup`: a copy of DATA_DIR/flip7.db in DATA_DIR/backups, safe to take while the server runs.
 
@@ -27,11 +27,11 @@ function readUserEmails(databasePath) {
     }
 }
 
-/** Runs `node src/backup.js` with DATA_DIR set, resolving to { code, stdout, stderr }. */
+/** Runs `node src/database/backup.js` with DATA_DIR set, resolving to { code, stdout, stderr }. */
 async function runBackupScript(dataDir) {
     const options = { cwd: SERVER_ROOT, env: { ...process.env, DATA_DIR: dataDir } };
     try {
-        const { stdout, stderr } = await runFile(process.execPath, ['src/backup.js'], options);
+        const { stdout, stderr } = await runFile(process.execPath, ['src/database/backup.js'], options);
         return { code: 0, stdout, stderr };
     } catch (error) {
         return { code: error.code, stdout: error.stdout, stderr: error.stderr };

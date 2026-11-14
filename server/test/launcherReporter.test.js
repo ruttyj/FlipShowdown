@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, mock, test } from 'node:test';
-import { createLauncherReporter, REPORT_DELAY_MS } from '../src/launcherReporter.js';
+import { createLauncherReporter, REPORT_DELAY_MS } from '../src/managers/launcherReporter.js';
 
 // --- Builders --------------------------------------------------------------
 

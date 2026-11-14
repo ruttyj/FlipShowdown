@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
-import { GeminiError, createGeminiClient } from '../src/gemini.js';
+import { GeminiError, createGeminiClient } from '../src/services/ai/gemini.js';
 
 // No real network: fetch is always injected.
 

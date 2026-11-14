@@ -4,7 +4,7 @@
 //   GEMINI_API_KEY=... node eval/scanEval.js --photos <folder> --models gemini-a,gemma-b
 //
 // A photo's name is its hand, so no other file is needed: lucky13_13_5_minus4.jpg. See
-// parseLabelledFilename. The requests and the mapping are the server's own (src/scanModes.js).
+// parseLabelledFilename. The requests and the mapping are the server's own (src/services/ai/scanModes.js).
 //
 // Photos go up as they are, while the app first shrinks them to a 1024 px long edge (CardScanner.jsx),
 // so a run stops on a photo the app could never send. A full-size photo could pass here and miss in
@@ -14,9 +14,9 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
-import { MAX_IMAGE_BYTES } from '../src/aiRoutes.js';
-import { GeminiError, createGeminiClient } from '../src/gemini.js';
-import { buildScanRequest, getScanMode, normaliseScanResult } from '../src/scanModes.js';
+import { MAX_IMAGE_BYTES } from '../src/http/aiRoutes.js';
+import { GeminiError, createGeminiClient } from '../src/services/ai/gemini.js';
+import { buildScanRequest, getScanMode, normaliseScanResult } from '../src/services/ai/scanModes.js';
 import { readImageSize } from './imageSize.js';
 
 // The bar a scan prompt has to clear.

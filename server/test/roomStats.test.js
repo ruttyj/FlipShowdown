@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
-import { buildRoomStats } from '../src/roomStats.js';
+import { buildRoomStats } from '../src/managers/roomStats.js';
 
 // --- Builders --------------------------------------------------------------
 

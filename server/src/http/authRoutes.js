@@ -5,9 +5,9 @@ import {
     normaliseEmail,
     normaliseName,
     sessionCookieOptions,
-} from './auth.js';
+} from '../services/auth.js';
 import { renderCloudflareInfoPage, renderDevLoginPage } from './loginPage.js';
-import { isPlainObject } from './query.js';
+import { isPlainObject } from '../lib/query.js';
 
 const CLOUDFLARE_LOGOUT_URL = '/cdn-cgi/access/logout';
 

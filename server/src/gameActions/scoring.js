@@ -1,6 +1,6 @@
 import { MAX_CARDS_PER_ROUND, isFlip7Hand, modeCapabilities } from '../../../shared/rules.js';
-import { roomGameMode } from '../gameModes.js';
-import { isPlainObject } from '../query.js';
+import { roomGameMode } from '../config/gameModes.js';
+import { isPlainObject } from '../lib/query.js';
 import { resetPlayersForNewGame } from './rooms.js';
 import { clearEditMode } from './players.js';
 import {

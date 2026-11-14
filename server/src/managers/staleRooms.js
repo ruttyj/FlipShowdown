@@ -1,5 +1,5 @@
-import { deleteRoomCascade } from './gameActions/rooms.js';
-import { ROOM, runRoomAction, SYSTEM_USER } from './gameActions/roomTx.js';
+import { deleteRoomCascade } from '../gameActions/rooms.js';
+import { ROOM, runRoomAction, SYSTEM_USER } from '../gameActions/roomTx.js';
 
 // The stale-room sweep (X81). Rooms nobody has touched for STALE_ROOM_HOURS are deleted the same
 // way the host's `delete` action does it: the room is published as closed, then it and its

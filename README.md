@@ -261,7 +261,7 @@ Everything lives in one SQLite file, `DATA_DIR/flip7.db`. To back it up, run `np
 writes `DATA_DIR/backups/flip7-<time>.db`. Back up before upgrading the server.
 
 On startup the server brings the database up to date with numbered migrations
-(`server/src/migrations/`). Before it changes a database that already holds data, it saves a copy
+(`server/src/database/migrations/`). Before it changes a database that already holds data, it saves a copy
 as `DATA_DIR/backups/pre-migration-<from>-to-<to>-<time>.db`. A database that a newer version has
 upgraded won't open in an older one.
 

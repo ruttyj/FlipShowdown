@@ -1,4 +1,4 @@
-import { normaliseName } from '../auth.js';
+import { normaliseName } from '../services/auth.js';
 import {
     OPEN_STATUSES,
     PLAYER,

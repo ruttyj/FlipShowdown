@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
-import { safeRedirectTarget } from '../src/authRoutes.js';
+import { safeRedirectTarget } from '../src/http/authRoutes.js';
 import { api, devLogin, startTestServer } from './helpers.js';
 
 const ID_PATTERN = /^[0-9a-f]{24}$/;

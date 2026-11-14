@@ -7,7 +7,7 @@ import path from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { createServer } from '../src/app.js';
-import { loadConfig } from '../src/config.js';
+import { loadConfig } from '../src/config/config.js';
 import { createChild, deleteChild, listPlayers, runRoomAction, updateChild } from '../src/gameActions/roomTx.js';
 import { advanceRound } from '../src/gameActions/rounds.js';
 import { createVoteTopics } from '../src/gameActions/voteTopics.js';

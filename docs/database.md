@@ -3,7 +3,7 @@
 The server keeps everything in one SQLite file, `DATA_DIR/flip7.db`, opened with
 [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) (synchronous, so each request's write is
 atomic). This page describes the schema after migration 0004. The source of truth is
-`server/src/migrations/`; the behaviour rules are X82-X88 in [decisions.md](decisions.md#server) and
+`server/src/database/migrations/`; the behaviour rules are X82-X88 in [decisions.md](decisions.md#server) and
 the API side is in [backend-contract.md](backend-contract.md#entities).
 
 ## Overview
@@ -14,7 +14,7 @@ the API side is in [backend-contract.md](backend-contract.md#entities).
 | Journal | `journal_mode = WAL`, `synchronous = NORMAL` |
 | Foreign keys | `ON` for the store's connection; `OFF` only while migrations run |
 | Schema | Numbered migrations, recorded in `schema_migrations` (see [Migrations](#migrations)) |
-| Store API | `openStore()` in `server/src/db.js` keeps the record-shaped API the routes always had (`listRecords`, `findRecords`, `createRecords`, ...), over typed tables for the four game entities and a JSON `records` table for everything else |
+| Store API | `openStore()` in `server/src/database/db.js` keeps the record-shaped API the routes always had (`listRecords`, `findRecords`, `createRecords`, ...), over typed tables for the four game entities and a JSON `records` table for everything else |
 | Code | `db.js` (connection, store), `entityTables.js` (table specs, row codec, `StoreError`), `migrate.js` + `migrations/` (schema), `email.js` (canonical emails), `backup.js` (copies), `eventLog.js` (`events`/`meta`), `staleRooms.js` (sweep) |
 
 ## Diagrams
@@ -418,7 +418,7 @@ and does no type checks.
 
 | | |
 | --- | --- |
-| Canonical form | `value.trim().toLowerCase()` (`canonicalEmail` in `server/src/email.js`); `normaliseEmail` also requires something `@` something, at most 254 chars |
+| Canonical form | `value.trim().toLowerCase()` (`canonicalEmail` in `server/src/lib/email.js`); `normaliseEmail` also requires something `@` something, at most 254 chars |
 | Enforced by | The CHECK on `users.email`, which only folds ASCII, so the shared normaliser is the real rule; every store user function and the user reference fields canonicalise first; `findRecordsByEmail` on `records` matches in JS with `canonicalEmail` |
 | Existing data | Migration 0002 rewrote `Player.email`, `GameRoom.host_email` and every `created_by` |
 | Case duplicates | 0002 merged users that differ only by case or spaces: the oldest (`created_date`, then rowid) survives and keeps its name, or takes the first name in its group; blank emails were dropped. A second player the merged user had in one room went to `legacy_orphans` as `duplicate_member` in 0004 |
@@ -432,7 +432,7 @@ and does no type checks.
 | `0003_game_tables` | Creates the four empty game tables |
 | `0004_move_legacy_records` | Moves game rows from `records` into them, creates `legacy_orphans`, drops `records_email` and `records_code` |
 
-How the runner (`server/src/migrate.js`) behaves:
+How the runner (`server/src/database/migrate.js`) behaves:
 
 - Each pending migration runs once, in version order, in its own `BEGIN IMMEDIATE` transaction that
   also inserts its `schema_migrations` row, so a failure leaves neither a half change nor a record.
@@ -446,7 +446,7 @@ How the runner (`server/src/migrate.js`) behaves:
 
 To add a migration:
 
-1. Create `server/src/migrations/NNNN_name.js` (next four-digit number) exporting `up(db)`.
+1. Create `server/src/database/migrations/NNNN_name.js` (next four-digit number) exporting `up(db)`.
 2. Keep it self-contained: no imports from `server/src/`; copy any spec it needs and freeze it.
 3. Register it in `migrations/index.js` (`migrate.test.js` fails if the folder and list differ).
 4. If it changes a game table, update the spec in `entityTables.js` to match.

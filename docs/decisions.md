@@ -100,7 +100,7 @@ New decisions get the next X number (the last used is X89).
 
 - **A vote can only pass once the host has been offline for 2 minutes** (X27), so a host who
   switched app or lost signal for a moment keeps the role. The server enforces it from the
-  host's `last_seen` (`HOST_OFFLINE_GRACE_MS` in `server/src/votes.js`, overridable with
+  host's `last_seen` (`HOST_OFFLINE_GRACE_MS` in `server/src/managers/votes.js`, overridable with
   `HOST_OFFLINE_GRACE_SECONDS`) and sends the time left as `unlocks_in_ms`. A host never seen
   online doesn't block the vote.
 - **Other players see nothing of the vote while the host is online** (X27). When the host goes
@@ -149,7 +149,7 @@ New decisions get the next X number (the last used is X89).
   (or creation, with none yet) is older than `STALE_ROOM_HOURS` (default 24, `0` = off) are deleted like the
   host's `delete`: published as closed, then removed with their players, scores and chat. A room with any
   player online is skipped however long it has idled, so a table that stopped playing keeps its room while the
-  page is open. A room that fails to delete is logged and skipped. The sweep is in `server/src/staleRooms.js`.
+  page is open. A room that fails to delete is logged and skipped. The sweep is in `server/src/managers/staleRooms.js`.
 
 ## Game modes
 
@@ -532,7 +532,7 @@ New decisions get the next X number (the last used is X89).
   without a `bad_request` code (X13, accepted). The client only checks the status.
 - Sorting treats `a.b` as a literal key; nested-field sort isn't supported.
 - **Schema changes are numbered migrations** (X82). Each is a self-contained file
-  `server/src/migrations/NNNN_name.js` exporting `up(db)`, listed in `migrations/index.js`
+  `server/src/database/migrations/NNNN_name.js` exporting `up(db)`, listed in `migrations/index.js`
   (`migrate.test.js` fails if a file isn't registered), and never imports `src/` or changes once
   shipped. At startup each pending one runs once, in order, in its own transaction with foreign keys
   off, must pass `foreign_key_check`, and is recorded in `schema_migrations`. A database at a higher
@@ -556,7 +556,7 @@ New decisions get the next X number (the last used is X89).
   row, so they are always canonical; writing an email nobody has signed in with creates a bare user
   (no name) that their first sign-in completes. User ids never appear in the API. `created_by` stays a
   plain email string.
-- **Emails are canonical everywhere** (X86): trimmed and lower-cased by `server/src/email.js`, for
+- **Emails are canonical everywhere** (X86): trimmed and lower-cased by `server/src/lib/email.js`, for
   sign-in, the store, realtime and `ADMIN_EMAILS`, and the `users` table has a CHECK for it. Migration
   0002 merged users that differed only by case or spaces: the oldest account wins and keeps its name
   (or takes the first one in its group when it has none); blank emails were dropped.
@@ -566,7 +566,7 @@ New decisions get the next X number (the last used is X89).
   merged user had in a room, with its scores). Of open rooms sharing a code only the newest stays
   open, as the code lookup already picked it. A value of the wrong type stays in `extra` and shows as
   before until the field is next written. `records` keeps only the other entities' rows.
-- **Backups are manual** (X88): `npm run backup` (`server/src/backup.js`) uses SQLite's backup API, so
+- **Backups are manual** (X88): `npm run backup` (`server/src/database/backup.js`) uses SQLite's backup API, so
   it is safe while the server runs, and writes `DATA_DIR/backups/flip7-<time>.db`.
 - **Dev mode has no admins** (X89). The dev login takes any email without a password, and
   `npm run share` and the desktop launcher serve it on a public URL, so `ADMIN_EMAILS` is ignored
@@ -634,7 +634,7 @@ New decisions get the next X number (the last used is X89).
     `LIVE_WINDOW_MS`) explicitly subscribed to a room they're a player in, so admin "*" sockets, hidden
     tabs and people on the web app's home screen don't count, and two tabs or devices count once. A room
     is in play when it isn't `closed` and at least one of its players is online. Only room codes reach
-    the launcher, never room ids or emails (`server/src/roomStats.js`).
+    the launcher, never room ids or emails (`server/src/managers/roomStats.js`).
   - *Transport*: the server pushes `{ type: 'room-stats', stats }` over Electron's utility-process
     parent port (`shared/launcherMessages.js`; desktop main keeps a checked copy, as app.asar has no
     `shared/`). The hub marks stats changed when a room's presence or a `GameRoom` changes; the reporter

@@ -2,10 +2,10 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { canonicalEmail } from './email.js';
+import { canonicalEmail } from '../lib/email.js';
 
 // The server/ folder, so relative defaults don't depend on the working directory.
-const SERVER_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const SERVER_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 // The SQLite database's file name inside DATA_DIR.
 export const DATABASE_FILE = 'flip7.db';

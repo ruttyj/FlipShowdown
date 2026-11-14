@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { beforeEach, describe, test } from 'node:test';
-import { createVoteTracker } from '../src/votes.js';
+import { createVoteTracker } from '../src/managers/votes.js';
 
 // Unit tests for the hold-to-vote state machine, on a fake clock.
 

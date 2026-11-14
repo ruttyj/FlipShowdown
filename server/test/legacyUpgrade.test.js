@@ -3,8 +3,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, test } from 'node:test';
-import { openDatabase, openStore } from '../src/db.js';
-import { ENTITY_TABLES } from '../src/entityTables.js';
+import { openDatabase, openStore } from '../src/database/db.js';
+import { ENTITY_TABLES } from '../src/database/entityTables.js';
 import { createLegacyDb } from './fixtures/legacyDb.js';
 import { api, devLogin, startTestServer } from './helpers.js';
 

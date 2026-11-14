@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { after, before, describe, test } from 'node:test';
-import { loadConfig } from '../src/config.js';
+import { loadConfig } from '../src/config/config.js';
 import { api, devLogin, startTestServer } from './helpers.js';
 
 const NAMES = ['host', 'ann', 'outsider', 'boss'];

@@ -1,45 +1,12 @@
-import { StoreError } from '../entityTables.js';
+import { CHAT_MESSAGE, OPEN_STATUSES, PLAYER, ROOM, ROUND_SCORE, SYSTEM_USER } from '../domain/entities.js';
+import { ActionError, StoreError, badRequest } from '../domain/errors.js';
 
 // Shared machinery for game actions: load the room, check the caller's
 // permission and the room's status, run the action body in one SQLite
 // transaction, bump the room's version, then publish the changed records.
 
-export const ROOM = 'GameRoom';
-export const PLAYER = 'Player';
-export const ROUND_SCORE = 'RoundScore';
-export const CHAT_MESSAGE = 'ChatMessage';
-
-/** Every status except `closed`. */
-export const OPEN_STATUSES = ['waiting', 'playing', 'finished'];
-
-/**
- * The "caller" of system actions (access 'system'). It has no email, so it
- * is never a member, host or admin.
- */
-export const SYSTEM_USER = Object.freeze({ email: null });
-
-// --- Errors --------------------------------------------------------------
-
-/**
- * An expected failure. Thrown inside an action body it rolls the
- * transaction back and becomes `status` + `{ message, code, ...extra }`.
- */
-export class ActionError extends Error {
-    constructor(status, code, message, extra = {}) {
-        super(message);
-        this.status = status;
-        this.code = code;
-        this.extra = extra;
-    }
-
-    toBody() {
-        return { message: this.message, code: this.code, ...this.extra };
-    }
-}
-
-export function badRequest(message) {
-    return new ActionError(400, 'bad_request', message);
-}
+// Moved to domain/; re-exported so existing importers keep working.
+export { ActionError, CHAT_MESSAGE, OPEN_STATUSES, PLAYER, ROOM, ROUND_SCORE, SYSTEM_USER, badRequest };
 
 // --- Change tracking -----------------------------------------------------
 

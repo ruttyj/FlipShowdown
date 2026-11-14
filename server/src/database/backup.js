@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import Database from 'better-sqlite3';
-import { DATABASE_FILE, resolveDataDir } from './config.js';
+import { DATABASE_FILE, resolveDataDir } from '../config/config.js';
 
 // Copies of the database. `npm run backup` (this file run directly) takes one by hand, and the
 // migration runner takes one before it changes the schema of a database holding data.

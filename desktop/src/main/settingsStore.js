@@ -17,7 +17,7 @@ import path from 'node:path';
 
 export const SETTINGS_FILE_NAME = 'settings.json';
 // The file the server writes its session secret to when SESSION_SECRET is not set
-// (server/src/config.js). Launchers before the secret moved here left one in the data folder.
+// (server/src/config/config.js). Launchers before the secret moved here left one in the data folder.
 const SERVER_SESSION_SECRET_FILE_NAME = 'session-secret';
 
 /**
@@ -61,7 +61,7 @@ const SECRET_LABELS = /** @type {const} */ ({
 /** @type {Readonly<Settings>} */
 export const DEFAULT_SETTINGS = Object.freeze({
     geminiApiKey: '',
-    // Same default as server/src/config.js.
+    // Same default as server/src/config/config.js.
     geminiModel: 'gemini-3.5-flash-lite',
 });
 

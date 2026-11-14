@@ -2,7 +2,7 @@
 // port (X66). Changes are coalesced: the first one starts a REPORT_DELAY_MS wait, later ones ride
 // on it, and the stats are sent only when they differ from the last ones sent. Without a parent
 // port (Docker, `npm run dev`) every method does nothing.
-import { LAUNCHER_MESSAGE } from '../../shared/launcherMessages.js';
+import { LAUNCHER_MESSAGE } from '../../../shared/launcherMessages.js';
 
 export const REPORT_DELAY_MS = 1000;
 

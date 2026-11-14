@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import WebSocket from 'ws';
 import { createServer } from '../src/app.js';
-import { loadConfig } from '../src/config.js';
+import { loadConfig } from '../src/config/config.js';
 
 // Shared test utilities (this file contains no tests of its own).
 

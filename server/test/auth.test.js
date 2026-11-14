@@ -14,7 +14,7 @@ import {
     parseCookies,
     sessionCookieOptions,
     verifySessionToken,
-} from '../src/auth.js';
+} from '../src/services/auth.js';
 
 const SECRET = 'test-secret';
 

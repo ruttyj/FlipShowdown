@@ -6,9 +6,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { after, afterEach, before, beforeEach, describe, test } from 'node:test';
 import Database from 'better-sqlite3';
-import { openStore } from '../src/db.js';
-import { createEventLog } from '../src/eventLog.js';
-import { createRealtimeHub } from '../src/realtime.js';
+import { openStore } from '../src/database/db.js';
+import { createEventLog } from '../src/database/eventLog.js';
+import { createRealtimeHub } from '../src/realtime/hub.js';
 import { api, attemptUpgrade, connectRealtime, devLogin, startTestServer } from './helpers.js';
 
 // --- Shared helpers ------------------------------------------------------

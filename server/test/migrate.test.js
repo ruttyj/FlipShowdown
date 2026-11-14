@@ -5,15 +5,15 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, test } from 'node:test';
 import Database from 'better-sqlite3';
-import { openDatabase, openStore } from '../src/db.js';
-import { runMigrations } from '../src/migrate.js';
-import { MIGRATIONS } from '../src/migrations/index.js';
+import { openDatabase, openStore } from '../src/database/db.js';
+import { runMigrations } from '../src/database/migrate.js';
+import { MIGRATIONS } from '../src/database/migrations/index.js';
 import { createLegacyDb } from './fixtures/legacyDb.js';
 
 // The migration runner: numbered migrations, each applied once, in order, in its own transaction,
 // with a snapshot of an existing database taken before any of them run.
 
-const MIGRATIONS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'migrations');
+const MIGRATIONS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'database', 'migrations');
 const FIXED_NOW = () => new Date('2026-01-02T03:04:05.678Z');
 
 function makeTempDir() {

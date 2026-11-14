@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
-import { createModelCatalog, selectScanningModels, supportsStructuredOutput } from '../src/aiModels.js';
+import { createModelCatalog, selectScanningModels, supportsStructuredOutput } from '../src/services/ai/aiModels.js';
 
 function model(id, methods = ['generateContent'], displayName) {
     return { name: `models/${id}`, displayName, supportedGenerationMethods: methods };

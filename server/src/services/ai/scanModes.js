@@ -1,5 +1,5 @@
 import { supportsStructuredOutput } from './aiModels.js';
-import { isPlainObject } from './query.js';
+import { isPlainObject } from '../../lib/query.js';
 
 // What to ask the model for a photo, and how to read its answer, for each scan mode. The client asks
 // for a mode through its registry's `scanMode` (src/lib/gameRules.js). Whatever the model says, the

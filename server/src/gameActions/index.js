@@ -1,5 +1,5 @@
 import express from 'express';
-import { isPlainObject } from '../query.js';
+import { isPlainObject } from '../lib/query.js';
 import { joinAction, kickAction, leaveAction, makeHostAction, reorderAction } from './players.js';
 import {
     closeAction,

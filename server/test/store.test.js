@@ -4,8 +4,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, test } from 'node:test';
 import Database from 'better-sqlite3';
-import { openStore } from '../src/db.js';
-import { StoreError, toStoreError } from '../src/entityTables.js';
+import { openStore } from '../src/database/db.js';
+import { StoreError, toStoreError } from '../src/database/entityTables.js';
 
 // The store on its typed tables (migration 0003): GameRoom, Player, RoundScore and ChatMessage
 // keep the record shape they had as JSON, with typed columns, foreign keys and uniqueness checks

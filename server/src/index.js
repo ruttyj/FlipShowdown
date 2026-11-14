@@ -1,5 +1,5 @@
 import { createServer } from './app.js';
-import { loadConfig } from './config.js';
+import { loadConfig } from './config/config.js';
 
 function logStartup(config, port) {
     console.log(`Flip Showdown server listening on port ${port} (AUTH_MODE=${config.authMode})`);

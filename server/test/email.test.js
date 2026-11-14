@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
-import { normaliseEmail as authNormaliseEmail } from '../src/auth.js';
-import { canonicalEmail, normaliseEmail } from '../src/email.js';
+import { normaliseEmail as authNormaliseEmail } from '../src/services/auth.js';
+import { canonicalEmail, normaliseEmail } from '../src/lib/email.js';
 
 // canonicalEmail is the one spelling of an email the database stores; normaliseEmail also
 // checks it looks like an address. Shape rejection is covered in auth.test.js.
