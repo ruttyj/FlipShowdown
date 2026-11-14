@@ -4,36 +4,31 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, test } from 'node:test';
 import { openStore } from '../src/database/db.js';
-import { STATS_CHANGED } from '../src/managers/roomStats.js';
 import { createRealtimeHub } from '../src/realtime/hub.js';
 import { silentLogger } from './helpers.js';
 
-// The hub's statsChanged notification (X66), which the launcher reporter listens for: a GameRoom
-// change emits it, and the createRealtimeHub `onStatsChanged` option listens for it. Presence
-// changes emit it too; launcherStats.test covers those end to end.
+// The hub's stats notification (X66), which the launcher reporter subscribes to through
+// hub.onStatsChanged: a GameRoom change calls the listeners. Presence changes call them too;
+// launcherStats.test covers those end to end.
 
 describe('hub stats notification', () => {
     let dataDir;
     let store;
     let hub;
-    let optionCalls;
-    let eventCalls;
+    let calls;
+    let stopListening;
 
     beforeEach(() => {
         dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flip7-test-'));
         store = openStore(dataDir);
-        optionCalls = 0;
-        eventCalls = 0;
+        calls = 0;
         hub = createRealtimeHub({
             authenticate: () => null,
             store,
             logger: silentLogger,
-            onStatsChanged: () => {
-                optionCalls += 1;
-            },
         });
-        hub.statsEvents.on(STATS_CHANGED, () => {
-            eventCalls += 1;
+        stopListening = hub.onStatsChanged(() => {
+            calls += 1;
         });
     });
 
@@ -43,7 +38,7 @@ describe('hub stats notification', () => {
         fs.rmSync(dataDir, { recursive: true, force: true });
     });
 
-    test('a published GameRoom change emits it once, to the option and to statsEvents', () => {
+    test('a published GameRoom change calls the listener once', () => {
         const [room] = store.createRecords('GameRoom', [{ status: 'waiting' }], null);
 
         hub.publishAll([
@@ -51,8 +46,7 @@ describe('hub stats notification', () => {
             { entity: 'GameRoom', type: 'update', record: room },
         ]);
 
-        assert.equal(optionCalls, 1);
-        assert.equal(eventCalls, 1);
+        assert.equal(calls, 1);
     });
 
     test('a change to anything else does not', () => {
@@ -61,7 +55,15 @@ describe('hub stats notification', () => {
 
         hub.publish('Player', 'update', player);
 
-        assert.equal(optionCalls, 0);
-        assert.equal(eventCalls, 0);
+        assert.equal(calls, 0);
+    });
+
+    test('the returned function stops the listener', () => {
+        const [room] = store.createRecords('GameRoom', [{ status: 'waiting' }], null);
+
+        stopListening();
+        hub.publish('GameRoom', 'update', room);
+
+        assert.equal(calls, 0);
     });
 });

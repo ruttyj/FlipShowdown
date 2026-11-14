@@ -19,6 +19,13 @@ function canEnterCards(room, player, round) {
 }
 
 export class EntryStatusManager {
+    #rooms;
+    #players;
+    #connections;
+    #subscriptions;
+    #lifecycle;
+    #tracker;
+
     /**
      * `rooms` reads GameRooms ({ get(roomId) }) and `players` Players ({ listByRoom(roomId) }).
      * `clock` is the hub's Clock, `connections` the ConnectionManager, `subscriptions` the
@@ -26,12 +33,12 @@ export class EntryStatusManager {
      * per-room reconciles run under.
      */
     constructor({ rooms, players, clock, connections, subscriptions, lifecycle }) {
-        this.rooms = rooms;
-        this.players = players;
-        this.connections = connections;
-        this.subscriptions = subscriptions;
-        this.lifecycle = lifecycle;
-        this.tracker = createEntryStatusTracker({ now: () => clock.now() });
+        this.#rooms = rooms;
+        this.#players = players;
+        this.#connections = connections;
+        this.#subscriptions = subscriptions;
+        this.#lifecycle = lifecycle;
+        this.#tracker = createEntryStatusTracker({ now: () => clock.now() });
     }
 
     // --- Messages ------------------------------------------------------------------
@@ -47,21 +54,21 @@ export class EntryStatusManager {
         const hasFields = typeof roomId === 'string'
             && Number.isInteger(round)
             && (state === null || isEntryState(state));
-        if (!hasFields || !this.subscriptions.isExplicitlySubscribed(socket, roomId)) {
+        if (!hasFields || !this.#subscriptions.isExplicitlySubscribed(socket, roomId)) {
             return;
         }
 
         const who = socket.identity.email;
         let isAdmitted;
         if (state === null) {
-            isAdmitted = this.tracker.admitClear(roomId, who);
+            isAdmitted = this.#tracker.admitClear(roomId, who);
         } else {
             // A state held past the window goes through the same checks then, so a submit, a kick
             // or a socket that has left the room since all stop it.
             const applyHeld = () => {
-                this.lifecycle.runGuarded('held entry status', () => this.#apply(socket, message));
+                this.#lifecycle.runGuarded('held entry status', () => this.#apply(socket, message));
             };
-            isAdmitted = this.tracker.admitAnnounce(roomId, who, { state, round }, applyHeld);
+            isAdmitted = this.#tracker.admitAnnounce(roomId, who, { state, round }, applyHeld);
         }
         if (isAdmitted) {
             this.#apply(socket, message);
@@ -70,16 +77,16 @@ export class EntryStatusManager {
 
     /** Puts a checked and admitted status into effect, and tells the room if that changed anything. */
     #apply(socket, { room_id: roomId, state, round }) {
-        const player = this.subscriptions.findSubscribedPlayer(socket, roomId);
+        const player = this.#subscriptions.findSubscribedPlayer(socket, roomId);
         if (!player) {
             return;
         }
 
         let hasChanged = false;
         if (state === null) {
-            hasChanged = this.tracker.clear(roomId, player.id);
-        } else if (canEnterCards(this.rooms.get(roomId), player, round)) {
-            hasChanged = this.tracker.set(roomId, player.id, { state, round });
+            hasChanged = this.#tracker.clear(roomId, player.id);
+        } else if (canEnterCards(this.#rooms.get(roomId), player, round)) {
+            hasChanged = this.#tracker.set(roomId, player.id, { state, round });
         }
 
         if (hasChanged) {
@@ -96,7 +103,7 @@ export class EntryStatusManager {
      */
     reconcileRooms(roomIds) {
         for (const roomId of roomIds) {
-            this.lifecycle.runGuarded('entry status', () => this.#reconcile(roomId));
+            this.#lifecycle.runGuarded('entry status', () => this.#reconcile(roomId));
         }
     }
 
@@ -105,13 +112,13 @@ export class EntryStatusManager {
      * or kick, a status change and the round moving on, whichever action caused them.
      */
     #reconcile(roomId) {
-        if (!this.tracker.hasEntries(roomId)) {
+        if (!this.#tracker.hasEntries(roomId)) {
             return;
         }
 
-        const room = this.rooms.get(roomId);
-        const players = this.players.listByRoom(roomId);
-        const hasChanged = this.tracker.retain(roomId, (entry) => {
+        const room = this.#rooms.get(roomId);
+        const players = this.#players.listByRoom(roomId);
+        const hasChanged = this.#tracker.retain(roomId, (entry) => {
             const player = players.find((candidate) => candidate.id === entry.player_id);
             return canEnterCards(room, player, entry.round);
         });
@@ -122,7 +129,7 @@ export class EntryStatusManager {
 
     /** Drops expired entries and tells each room that lost one (the periodic check). */
     sweepExpired() {
-        for (const roomId of this.tracker.sweepExpired()) {
+        for (const roomId of this.#tracker.sweepExpired()) {
             this.#broadcast(roomId);
         }
     }
@@ -133,20 +140,20 @@ export class EntryStatusManager {
     sendState(socket, roomId) {
         const message = this.#buildMessage(roomId);
         if (message.entries.length > 0) {
-            this.connections.send(socket, message);
+            this.#connections.send(socket, message);
         }
     }
 
     #buildMessage(roomId) {
-        return { type: SERVER_MESSAGE.ENTRY_STATUS, room_id: roomId, entries: this.tracker.list(roomId) };
+        return { type: SERVER_MESSAGE.ENTRY_STATUS, room_id: roomId, entries: this.#tracker.list(roomId) };
     }
 
     #broadcast(roomId) {
-        this.subscriptions.sendToRoom(roomId, this.#buildMessage(roomId));
+        this.#subscriptions.sendToRoom(roomId, this.#buildMessage(roomId));
     }
 
     /** Stops the timers of held statuses (the hub is closing). */
     close() {
-        this.tracker.close();
+        this.#tracker.close();
     }
 }

@@ -24,6 +24,11 @@ function buildEventText(seq, entity, type, record, roomVersion) {
 }
 
 export class EventPublisher {
+    #eventLog;
+    #connections;
+    #subscriptions;
+    #lifecycle;
+
     /**
      * `eventLog` is the store's event log (EventRepository: epoch, lastSeq, oldestSeq, appendAll,
      * readAfter). `connections` is the ConnectionManager (clients, send), `subscriptions` the
@@ -31,20 +36,20 @@ export class EventPublisher {
      * Lifecycle, whose guard each send runs under.
      */
     constructor({ eventLog, connections, subscriptions, lifecycle }) {
-        this.eventLog = eventLog;
-        this.connections = connections;
-        this.subscriptions = subscriptions;
-        this.lifecycle = lifecycle;
+        this.#eventLog = eventLog;
+        this.#connections = connections;
+        this.#subscriptions = subscriptions;
+        this.#lifecycle = lifecycle;
     }
 
     /** The event log's id; a client holding another epoch has to resync. */
     get epoch() {
-        return this.eventLog.epoch;
+        return this.#eventLog.epoch;
     }
 
     /** The seq of the newest event stored. */
     get seq() {
-        return this.eventLog.lastSeq;
+        return this.#eventLog.lastSeq;
     }
 
     // --- Publishing --------------------------------------------------------------
@@ -65,10 +70,10 @@ export class EventPublisher {
                 buildText: (seq) => buildEventText(seq, event.entity, event.type, event.record, roomVersion),
             });
         }
-        const stored = this.eventLog.appendAll(entries);
+        const stored = this.#eventLog.appendAll(entries);
 
         for (const [index, entry] of entries.entries()) {
-            this.lifecycle.runGuarded(`${entry.entity} event`, () => {
+            this.#lifecycle.runGuarded(`${entry.entity} event`, () => {
                 this.#sendEvent(entry.roomId, entry.entity, stored[index].text);
             });
         }
@@ -77,9 +82,9 @@ export class EventPublisher {
     }
 
     #sendEvent(roomId, entity, text) {
-        for (const socket of this.connections.clients) {
-            if (this.subscriptions.canReceive(socket, roomId, entity)) {
-                this.connections.send(socket, text);
+        for (const socket of this.#connections.clients) {
+            if (this.#subscriptions.canReceive(socket, roomId, entity)) {
+                this.#connections.send(socket, text);
             }
         }
     }
@@ -97,15 +102,15 @@ export class EventPublisher {
         if (!hasPosition) {
             return 'fresh';
         }
-        if (epoch !== this.eventLog.epoch) {
+        if (epoch !== this.#eventLog.epoch) {
             return 'resync';
         }
         if (!Number.isInteger(lastSeq)) {
             return 'fresh';
         }
 
-        const oldestStoredSeq = this.eventLog.oldestSeq() ?? this.eventLog.lastSeq + 1;
-        const isAheadOfServer = lastSeq > this.eventLog.lastSeq;
+        const oldestStoredSeq = this.#eventLog.oldestSeq() ?? this.#eventLog.lastSeq + 1;
+        const isAheadOfServer = lastSeq > this.#eventLog.lastSeq;
         // Replay needs the event right after lastSeq to still be stored.
         const isGapTooOld = lastSeq + 1 < oldestStoredSeq;
         if (isAheadOfServer || isGapTooOld) {
@@ -118,12 +123,12 @@ export class EventPublisher {
     replay(socket, lastSeq) {
         // null reads every room's events; canReceive below still filters what a "*" socket gets.
         let roomIds = null;
-        if (!this.subscriptions.watchesAllRooms(socket)) {
-            roomIds = [...this.subscriptions.roomsOf(socket)];
+        if (!this.#subscriptions.watchesAllRooms(socket)) {
+            roomIds = [...this.#subscriptions.roomsOf(socket)];
         }
-        for (const row of this.eventLog.readAfter(lastSeq, roomIds)) {
-            if (this.subscriptions.canReceive(socket, row.room_id, row.entity)) {
-                this.connections.send(socket, row.text);
+        for (const row of this.#eventLog.readAfter(lastSeq, roomIds)) {
+            if (this.#subscriptions.canReceive(socket, row.room_id, row.entity)) {
+                this.#connections.send(socket, row.text);
             }
         }
     }

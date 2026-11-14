@@ -28,6 +28,8 @@ const START = Date.parse('2030-01-01T00:00:00.000Z');
 describe('VoteManager', () => {
     let time;
     let room;
+    let roomStore;
+    let voteTopics;
     let connections;
     let subscriptions;
     let cachedPresence;
@@ -59,8 +61,25 @@ describe('VoteManager', () => {
         lifecycle = new Lifecycle({ logger });
 
         const isOpen = (gameRoom) => gameRoom !== null && gameRoom.status === 'playing';
+        roomStore = createFakeRooms([room]);
+        voteTopics = {
+            finish: {
+                validateOption: (gameRoom, players, option) => isOpen(gameRoom) && option === 'yes',
+                resolve: (roomId, option) => {
+                    resolved.push([roomId, option]);
+                    return resolveResult;
+                },
+            },
+            host: {
+                hostDecides: true,
+                validateOption: (gameRoom, players, option) => {
+                    return isOpen(gameRoom) && players.some((player) => player.id === option);
+                },
+                resolve: () => ({ status: 200, body: {} }),
+            },
+        };
         votes = new VoteManager({
-            rooms: createFakeRooms([room]),
+            rooms: roomStore,
             players: playerStore,
             clock: new Clock(() => time),
             connections,
@@ -68,22 +87,7 @@ describe('VoteManager', () => {
             presence: { playersOf: (roomId) => cachedPresence.get(roomId) ?? null },
             lifecycle,
             logger,
-            voteTopics: {
-                finish: {
-                    validateOption: (gameRoom, players, option) => isOpen(gameRoom) && option === 'yes',
-                    resolve: (roomId, option) => {
-                        resolved.push([roomId, option]);
-                        return resolveResult;
-                    },
-                },
-                host: {
-                    hostDecides: true,
-                    validateOption: (gameRoom, players, option) => {
-                        return isOpen(gameRoom) && players.some((player) => player.id === option);
-                    },
-                    resolve: () => ({ status: 200, body: {} }),
-                },
-            },
+            voteTopics,
             holdMs: HOLD_MS,
             hostGraceMs: GRACE_MS,
         });
@@ -190,7 +194,7 @@ describe('VoteManager', () => {
             const bob = subscribe(BOB, ['r1']);
             const players = presenceWith('bob-1');
             players[0].last_seen = new Date(START - 500).toISOString();
-            votes.rooms = { get: () => null };
+            roomStore.get = () => null;
 
             votes.refreshRoom('r1', players);
 
@@ -311,7 +315,7 @@ describe('VoteManager', () => {
         test('an action that throws is logged under the guard', () => {
             const { ann, bob } = annAndBobOnline();
             const error = new Error('action failed');
-            votes.voteTopics.finish.resolve = () => {
+            voteTopics.finish.resolve = () => {
                 throw error;
             };
             votes.hold(ann, { room_id: 'r1', topic: 'finish', option: 'yes' });

@@ -152,7 +152,7 @@ export function createServer(config, options = {}) {
         buildStats: () => hub.buildRoomStats(),
         delayMs: options.launcherReportDelayMs,
         logger,
-        statsEvents: hub.statsEvents,
+        onStatsChanged: (listener) => hub.onStatsChanged(listener),
     });
 
     const app = express();

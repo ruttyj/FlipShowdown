@@ -2,8 +2,8 @@ import { WebSocket } from 'ws';
 import { LIVE_WINDOW_MS } from '../../../shared/realtimeProtocol.js';
 
 // The realtime sockets themselves: whether each one is still connected and whether its page is
-// live, the heartbeat and liveness timers, and sending. It knows nothing about rooms; the hub turns
-// a liveness change into presence updates.
+// live, the heartbeat and liveness timers, and sending. It knows nothing about rooms; RealtimeServer
+// (a ping) and the hub (the periodic check) turn a liveness change into presence updates.
 //
 // Two separate signals, set on each socket:
 //   isAlive     - answered the last WebSocket ping. Only used to terminate dead sockets: the
@@ -15,6 +15,14 @@ export const HEARTBEAT_INTERVAL_MS = 30_000;
 export const LIVENESS_CHECK_INTERVAL_MS = 5_000;
 
 export class ConnectionManager {
+    #clients;
+    #clock;
+    #lifecycle;
+    #logger;
+    #heartbeatIntervalMs;
+    #livenessCheckIntervalMs;
+    #timers = [];
+
     /**
      * `clients` is the WebSocketServer's live set of sockets, `clock` a Clock, `lifecycle` the
      * hub's Lifecycle (socket and timer callbacks run under its guard) and `logger` a console-like
@@ -29,13 +37,17 @@ export class ConnectionManager {
         heartbeatIntervalMs = HEARTBEAT_INTERVAL_MS,
         livenessCheckIntervalMs = LIVENESS_CHECK_INTERVAL_MS,
     }) {
-        this.clients = clients;
-        this.clock = clock;
-        this.lifecycle = lifecycle;
-        this.logger = logger;
-        this.heartbeatIntervalMs = heartbeatIntervalMs;
-        this.livenessCheckIntervalMs = livenessCheckIntervalMs;
-        this.timers = [];
+        this.#clients = clients;
+        this.#clock = clock;
+        this.#lifecycle = lifecycle;
+        this.#logger = logger;
+        this.#heartbeatIntervalMs = heartbeatIntervalMs;
+        this.#livenessCheckIntervalMs = livenessCheckIntervalMs;
+    }
+
+    /** The live set of connected sockets, which the other realtime managers iterate. */
+    get clients() {
+        return this.#clients;
     }
 
     // --- Sockets -------------------------------------------------------------
@@ -47,19 +59,19 @@ export class ConnectionManager {
     register(socket, { onMessage, onClose }) {
         socket.isAlive = true;
         socket.isLive = true;
-        socket.lastHeardAt = this.clock.now();
+        socket.lastHeardAt = this.#clock.now();
 
         socket.on('pong', () => {
             socket.isAlive = true;
         });
         socket.on('message', (raw) => {
-            this.lifecycle.runGuarded('message', () => onMessage(raw));
+            this.#lifecycle.runGuarded('message', () => onMessage(raw));
         });
         socket.on('close', () => {
-            this.lifecycle.runGuarded('close', onClose);
+            this.#lifecycle.runGuarded('close', onClose);
         });
         socket.on('error', (error) => {
-            this.logger.warn(`Realtime socket error: ${error.message}`);
+            this.#logger.warn(`Realtime socket error: ${error.message}`);
         });
     }
 
@@ -85,7 +97,7 @@ export class ConnectionManager {
      * caller updates its rooms' presence.
      */
     markHeard(socket) {
-        socket.lastHeardAt = this.clock.now();
+        socket.lastHeardAt = this.#clock.now();
         if (socket.isLive) {
             return false;
         }
@@ -100,8 +112,8 @@ export class ConnectionManager {
      */
     updateLiveness() {
         const changed = [];
-        for (const socket of this.clients) {
-            const isLive = this.clock.now() - socket.lastHeardAt <= LIVE_WINDOW_MS;
+        for (const socket of this.#clients) {
+            const isLive = this.#clock.now() - socket.lastHeardAt <= LIVE_WINDOW_MS;
             if (isLive === socket.isLive) {
                 continue;
             }
@@ -119,13 +131,13 @@ export class ConnectionManager {
      * lifecycle's guard. Neither timer keeps the process alive.
      */
     startTimers(onPeriodicCheck) {
-        const heartbeatTimer = setInterval(() => this.#heartbeat(), this.heartbeatIntervalMs);
+        const heartbeatTimer = setInterval(() => this.#heartbeat(), this.#heartbeatIntervalMs);
         const livenessTimer = setInterval(() => {
-            this.lifecycle.runGuarded('periodic check', onPeriodicCheck);
-        }, this.livenessCheckIntervalMs);
+            this.#lifecycle.runGuarded('periodic check', onPeriodicCheck);
+        }, this.#livenessCheckIntervalMs);
         heartbeatTimer.unref();
         livenessTimer.unref();
-        this.timers = [heartbeatTimer, livenessTimer];
+        this.#timers = [heartbeatTimer, livenessTimer];
     }
 
     /**
@@ -133,17 +145,17 @@ export class ConnectionManager {
      * close events the terminations cause are skipped.
      */
     close() {
-        for (const timer of this.timers) {
+        for (const timer of this.#timers) {
             clearInterval(timer);
         }
-        for (const socket of this.clients) {
+        for (const socket of this.#clients) {
             socket.terminate();
         }
     }
 
     /** Terminates sockets that didn't answer the previous ping, then pings the rest. */
     #heartbeat() {
-        for (const socket of this.clients) {
+        for (const socket of this.#clients) {
             if (!socket.isAlive) {
                 socket.terminate();
                 continue;

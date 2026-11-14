@@ -37,6 +37,18 @@ export function hostOfflineSinceOf(presencePlayers, hostPlayerId) {
 // --- Manager -------------------------------------------------------------------
 
 export class PresenceManager {
+    #rooms;
+    #players;
+    #clock;
+    #connections;
+    #subscriptions;
+    #onStatsChanged;
+    #onRefreshed;
+    // The managers onlineSockets.js reads the sockets through: { connections, subscriptions }.
+    #socketManagers;
+    // roomId -> { players, text } as last sent, to detect changes.
+    #cache = new Map();
+
     /**
      * `rooms` reads GameRooms ({ get(roomId) }) and `players` Players ({ listByRoom(roomId),
      * update(playerId, changes) }). `clock` is the hub's Clock, `connections` the
@@ -48,15 +60,14 @@ export class PresenceManager {
      * online players.
      */
     constructor({ rooms, players, clock, connections, subscriptions, onStatsChanged, onRefreshed }) {
-        this.rooms = rooms;
-        this.players = players;
-        this.clock = clock;
-        this.connections = connections;
-        this.subscriptions = subscriptions;
-        this.onStatsChanged = onStatsChanged;
-        this.onRefreshed = onRefreshed;
-        // roomId -> { players, text } as last sent, to detect changes.
-        this.cache = new Map();
+        this.#rooms = rooms;
+        this.#players = players;
+        this.#clock = clock;
+        this.#connections = connections;
+        this.#subscriptions = subscriptions;
+        this.#onStatsChanged = onStatsChanged;
+        this.#onRefreshed = onRefreshed;
+        this.#socketManagers = { connections, subscriptions };
     }
 
     // --- Refreshing --------------------------------------------------------------
@@ -67,7 +78,7 @@ export class PresenceManager {
      * sends it the state itself, in the right order after ready / rooms-ok.
      */
     refresh(roomId, { force = false, skipSocket = null } = {}) {
-        const previous = this.cache.get(roomId);
+        const previous = this.#cache.get(roomId);
         const players = this.#buildPlayers(roomId);
         this.#recordWentOffline(previous?.players ?? [], players);
 
@@ -75,17 +86,17 @@ export class PresenceManager {
         const hasChanged = text !== previous?.text;
 
         // Nobody is watching the room any more, so there is no transition to track.
-        if (this.subscriptions.hasSubscribers(roomId)) {
-            this.cache.set(roomId, { players, text });
+        if (this.#subscriptions.hasSubscribers(roomId)) {
+            this.#cache.set(roomId, { players, text });
         } else {
-            this.cache.delete(roomId);
+            this.#cache.delete(roomId);
         }
 
         if (hasChanged || force) {
-            this.subscriptions.sendToRoom(roomId, text, skipSocket);
-            this.onStatsChanged();
+            this.#subscriptions.sendToRoom(roomId, text, skipSocket);
+            this.#onStatsChanged();
         }
-        this.onRefreshed(roomId, players, { force, skipSocket });
+        this.#onRefreshed(roomId, players, { force, skipSocket });
     }
 
     /** refresh for each room id in `roomIds` (an iterable), in order. */
@@ -95,15 +106,10 @@ export class PresenceManager {
         }
     }
 
-    /** The managers onlineSockets.js reads the sockets through. */
-    #socketManagers() {
-        return { connections: this.connections, subscriptions: this.subscriptions };
-    }
-
     #buildPlayers(roomId) {
-        const online = onlineEmailsIn(this.#socketManagers(), roomId);
+        const online = onlineEmailsIn(this.#socketManagers, roomId);
         const players = [];
-        for (const player of this.players.listByRoom(roomId)) {
+        for (const player of this.#players.listByRoom(roomId)) {
             players.push({
                 player_id: player.id,
                 online: online.has(player.email),
@@ -119,10 +125,10 @@ export class PresenceManager {
      */
     #recordWentOffline(previousPlayers, players) {
         const wasOnline = new Set(onlinePlayerIdsOf(previousPlayers));
-        const timestamp = new Date(this.clock.now()).toISOString();
+        const timestamp = new Date(this.#clock.now()).toISOString();
         for (const player of players) {
             if (!player.online && wasOnline.has(player.player_id)) {
-                this.players.update(player.player_id, { last_seen: timestamp });
+                this.#players.update(player.player_id, { last_seen: timestamp });
                 player.last_seen = timestamp;
             }
         }
@@ -132,7 +138,7 @@ export class PresenceManager {
 
     /** The room's cached presence players, or null when nobody subscribes to the room. */
     playersOf(roomId) {
-        return this.cache.get(roomId)?.players ?? null;
+        return this.#cache.get(roomId)?.players ?? null;
     }
 
     /** Whether any of the room's players has a live socket subscribed to it right now. */
@@ -146,18 +152,18 @@ export class PresenceManager {
 
     /** Sends the socket the room's cached presence message, if there is one. */
     sendState(socket, roomId) {
-        const presence = this.cache.get(roomId);
+        const presence = this.#cache.get(roomId);
         if (presence) {
-            this.connections.send(socket, presence.text);
+            this.#connections.send(socket, presence.text);
         }
     }
 
     /** The launcher's room stats (roomStats.js). */
     buildRoomStats() {
         return summariseRoomStats({
-            getRoom: (roomId) => this.rooms.get(roomId),
-            presence: this.cache,
-            playersOnline: countPeopleOnline(this.#socketManagers()),
+            getRoom: (roomId) => this.#rooms.get(roomId),
+            presence: this.#cache,
+            playersOnline: countPeopleOnline(this.#socketManagers),
         });
     }
 }

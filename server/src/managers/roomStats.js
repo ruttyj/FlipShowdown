@@ -13,12 +13,6 @@ import { SubscriptionManager } from './SubscriptionManager.js';
 const ROOM_STATUS_CLOSED = 'closed';
 
 /**
- * The hub's notification that the stats may have changed, because a room's presence or a GameRoom
- * changed. The hub's `statsEvents` emits it and the LauncherReporter listens for it.
- */
-export const STATS_CHANGED = 'statsChanged';
-
-/**
  * @typedef {object} RoomStat
  * @property {string} code
  * @property {'waiting' | 'playing' | 'finished'} status

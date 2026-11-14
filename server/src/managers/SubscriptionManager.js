@@ -11,15 +11,19 @@
 const ALL_ROOMS = '*';
 
 export class SubscriptionManager {
+    #connections;
+    #players;
+    #isAdmin;
+
     /**
      * `connections` is the ConnectionManager (its `clients` and `send`). `players` reads Player
      * records: { listByRoom(roomId), listByUserEmail(email) }, as PlayerRepository has them.
      * `isAdmin(identity)` says whether a socket's identity may subscribe to "*".
      */
     constructor({ connections, players, isAdmin }) {
-        this.connections = connections;
-        this.players = players;
-        this.isAdmin = isAdmin;
+        this.#connections = connections;
+        this.#players = players;
+        this.#isAdmin = isAdmin;
     }
 
     // --- Subscribing -----------------------------------------------------------
@@ -44,7 +48,7 @@ export class SubscriptionManager {
         const memberRooms = this.#roomIdsOfUser(identity.email);
         for (const roomId of requested) {
             if (roomId === ALL_ROOMS) {
-                subscription.allRooms = this.isAdmin(identity);
+                subscription.allRooms = this.#isAdmin(identity);
                 continue;
             }
             if (memberRooms.has(roomId)) {
@@ -57,7 +61,7 @@ export class SubscriptionManager {
     /** Ids of the rooms where this (normalised) email has a Player. */
     #roomIdsOfUser(email) {
         const roomIds = new Set();
-        for (const player of this.players.listByUserEmail(email)) {
+        for (const player of this.#players.listByUserEmail(email)) {
             if (typeof player.room_id === 'string') {
                 roomIds.add(player.room_id);
             }
@@ -109,7 +113,7 @@ export class SubscriptionManager {
      */
     dropNonMembers(roomId) {
         const dropped = [];
-        for (const socket of this.connections.clients) {
+        for (const socket of this.#connections.clients) {
             const isDropped = socket.rooms.has(roomId)
                 && !this.isMember(socket.identity.email, roomId);
             if (isDropped) {
@@ -139,7 +143,7 @@ export class SubscriptionManager {
 
     /** Whether this (normalised) email has a Player in the room. */
     isMember(email, roomId) {
-        return this.players.listByRoom(roomId).some((player) => player.email === email);
+        return this.#players.listByRoom(roomId).some((player) => player.email === email);
     }
 
     /**
@@ -179,7 +183,7 @@ export class SubscriptionManager {
      * stays connected.
      */
     hasSubscribers(roomId) {
-        for (const socket of this.connections.clients) {
+        for (const socket of this.#connections.clients) {
             if (this.isExplicitlySubscribed(socket, roomId)) {
                 return true;
             }
@@ -196,7 +200,7 @@ export class SubscriptionManager {
             return null;
         }
 
-        const player = this.players.listByRoom(roomId).find((candidate) => {
+        const player = this.#players.listByRoom(roomId).find((candidate) => {
             return candidate.email === socket.identity.email;
         });
         return player ?? null;
@@ -210,9 +214,9 @@ export class SubscriptionManager {
      */
     sendToRoom(roomId, message, skipSocket = null) {
         const text = typeof message === 'string' ? message : JSON.stringify(message);
-        for (const socket of this.connections.clients) {
+        for (const socket of this.#connections.clients) {
             if (socket !== skipSocket && this.isSubscribedToRoom(socket, roomId)) {
-                this.connections.send(socket, text);
+                this.#connections.send(socket, text);
             }
         }
     }

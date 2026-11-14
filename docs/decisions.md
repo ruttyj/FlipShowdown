@@ -638,9 +638,10 @@ New decisions get the next X number (the last used is X89).
     with presence, is `onlineSockets.js`).
   - *Transport*: the server pushes `{ type: 'room-stats', stats }` over Electron's utility-process
     parent port (`shared/launcherMessages.js`; desktop main keeps a checked copy, as app.asar has no
-    `shared/`). The hub's `statsEvents` emits `statsChanged` when a room's presence or a `GameRoom`
-    changes; the `LauncherReporter` listens for it and builds them at most once a second (trailing, 1000 ms) and sends only when they differ. It sends
-    0 / 0 as soon as the server listens. Without a parent port (Docker, `npm run dev`) it does nothing.
+    `shared/`). The `LauncherReporter` subscribes with the hub's `onStatsChanged`, which fires when a
+    room's presence or a `GameRoom` changes, builds the stats at most once a second (trailing,
+    1000 ms) and sends them only when they differ. It sends 0 / 0 as soon as the server listens.
+    Without a parent port (Docker, `npm run dev`) it does nothing.
   - *Main* caches the latest stats and forwards them (`launcher:room-stats`) only while the window is
     visible, sending the cache once on show or restore; `launcher:get-room-stats` answers from the cache.
     The session reports `null` when it stops or fails, so a new start never shows old numbers.

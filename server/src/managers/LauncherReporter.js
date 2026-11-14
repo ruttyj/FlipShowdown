@@ -3,7 +3,6 @@
 // on it, and the stats are sent only when they differ from the last ones sent. Without a parent
 // port (Docker, `npm run dev`) every method does nothing.
 import { LAUNCHER_MESSAGE } from '../../../shared/launcherMessages.js';
-import { STATS_CHANGED } from './roomStats.js';
 
 export const REPORT_DELAY_MS = 1000;
 
@@ -12,35 +11,35 @@ export class LauncherReporter {
     #buildStats;
     #delayMs;
     #logger;
-    #statsEvents;
+    #stopListening = null;
     #timer = null;
     #lastText = null;
     #isClosed = false;
-    #onStatsChanged = () => this.markChanged();
 
     /**
      * @param {{ parentPort?: { postMessage(message: unknown): void } | null,
      *   buildStats: () => unknown, delayMs?: number,
      *   logger?: { error(...args: unknown[]): void },
-     *   statsEvents?: import('node:events').EventEmitter | null }} options
+     *   onStatsChanged?: ((listener: () => void) => () => void) | null }} options
      *   parentPort defaults to Electron's process.parentPort, which is undefined outside a utility
-     *   process. `statsEvents` is the hub's: each STATS_CHANGED it emits marks the stats changed.
+     *   process. `onStatsChanged(listener)` is the hub's: it calls the listener whenever the stats
+     *   may have changed, which marks them changed, and returns a function that stops it. Without
+     *   it the stats only go out on sendNow.
      */
     constructor({
         parentPort = /** @type {any} */ (process).parentPort ?? null,
         buildStats,
         delayMs = REPORT_DELAY_MS,
         logger = console,
-        statsEvents = null,
+        onStatsChanged = null,
     }) {
         this.#parentPort = parentPort;
         this.#buildStats = buildStats;
         this.#delayMs = delayMs;
         this.#logger = logger;
         // Without a parent port there is nobody to tell, so it doesn't listen at all.
-        if (parentPort && statsEvents) {
-            this.#statsEvents = statsEvents;
-            statsEvents.on(STATS_CHANGED, this.#onStatsChanged);
+        if (parentPort && onStatsChanged) {
+            this.#stopListening = onStatsChanged(() => this.markChanged());
         }
     }
 
@@ -66,7 +65,8 @@ export class LauncherReporter {
         this.#isClosed = true;
         clearTimeout(this.#timer);
         this.#timer = null;
-        this.#statsEvents?.off(STATS_CHANGED, this.#onStatsChanged);
+        this.#stopListening?.();
+        this.#stopListening = null;
     }
 
     /** Builds and sends the stats when they changed. A failure is logged: stats are never worth a crash. */

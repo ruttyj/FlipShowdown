@@ -3,10 +3,17 @@
 // late callbacks at once.
 
 export class Lifecycle {
+    #logger;
+    #isClosed = false;
+
     /** `logger` is a console-like object; a guarded handler's throw goes to its `error`. */
     constructor({ logger }) {
-        this.logger = logger;
-        this.isClosed = false;
+        this.#logger = logger;
+    }
+
+    /** Whether close has run. */
+    get isClosed() {
+        return this.#isClosed;
     }
 
     /**
@@ -14,19 +21,19 @@ export class Lifecycle {
      * Does nothing once closed, so a late callback can't touch a closed hub.
      */
     runGuarded(label, handler) {
-        if (this.isClosed) {
+        if (this.#isClosed) {
             return;
         }
 
         try {
             handler();
         } catch (error) {
-            this.logger.error(`Realtime ${label} failed`, error);
+            this.#logger.error(`Realtime ${label} failed`, error);
         }
     }
 
     /** Guarded handlers are skipped from now on. */
     close() {
-        this.isClosed = true;
+        this.#isClosed = true;
     }
 }

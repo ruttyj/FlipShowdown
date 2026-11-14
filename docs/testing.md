@@ -9,7 +9,7 @@ How this project is tested, and what has bitten agents before. The commands are 
 | --- | --- | --- |
 | Pure client logic (`src/lib`, `src/api`) and the rule kernel (`shared/`) | `node:test` | `tests/*.test.js` |
 | React hooks and components | Vitest + jsdom + Testing Library | `tests/ui/**/*.test.jsx` |
-| Server (actions, HTTP, realtime, config) | `node:test` | `server/test/*.test.js` |
+| Server (actions, HTTP, realtime, config) | `node:test` | `server/test/**/*.test.js` |
 | The client's realtime joined to the real hub over a real socket | `node:test` | `server/test/realtimeChannel.test.js` |
 | Whole flows in real browsers | Playwright | `e2e/*.spec.js` |
 | Desktop launcher main process (`desktop/src/main`) and packaging scripts | `node:test` | `desktop/test/*.test.js` |
@@ -252,10 +252,13 @@ code changes on every run.
   `realtimeNow` clock, so a test sending two in a row has to advance `clock.time` between them. The
   held state is then applied by a real timer, which ignores that clock, so a test of it really waits.
 - Some server tests wrap `store` facade methods on a running server: `entryStatus.test.js` counts
-  `store.findRecords` calls and `staleRooms.test.js` makes `store.getRecord` throw. The realtime hub's
-  GameRoom and Player access (`createStoreViews`) and the action runner's room load still go through
-  the facade for that reason. Moving them to `store.repositories` keeps those tests green but makes
-  them check nothing.
+  `store.findRecords` calls and `staleRooms.test.js` makes `store.getRecord` throw. The realtime
+  managers' GameRoom and Player access (`managers/storeViews.js`) and the action runner's room load
+  go through the facade for that reason. Moving them to `store.repositories` keeps those tests green
+  but makes them check nothing.
+- The realtime managers keep their dependencies and state in private fields, so a manager unit test
+  (`server/test/managers/`) changes a dependency by changing the fake it passed in (the rooms store,
+  the vote topics), not the manager.
 - `useGameRoom`'s shared dialogs live in `RoomDialogs`, mounted by `GameRoom`, so a screen test sees no
   confirm dialog. Test a prompt against the page (`GameRoom.test.jsx`) or through `dialogs.confirmation`.
 - Saving a draft doesn't re-render `useScoreEntry`, so anything read from storage at render can be

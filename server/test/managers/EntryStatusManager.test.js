@@ -26,6 +26,7 @@ describe('EntryStatusManager', () => {
     let time;
     let rooms;
     let players;
+    let roomStore;
     let connections;
     let subscriptions;
     let logger;
@@ -42,6 +43,7 @@ describe('EntryStatusManager', () => {
             { id: 'ann-1', room_id: 'r1', email: ANN },
             { id: 'bob-1', room_id: 'r1', email: BOB },
             { id: 'ann-2', room_id: 'r2', email: ANN },
+            { id: 'admin-1', room_id: 'r1', email: ADMIN },
         ];
         const playerStore = createFakePlayers(players);
         connections = createFakeConnections();
@@ -51,8 +53,9 @@ describe('EntryStatusManager', () => {
             isAdmin: (identity) => identity.email === ADMIN,
         });
         logger = createRecordingLogger();
+        roomStore = createFakeRooms(rooms);
         entries = new EntryStatusManager({
-            rooms: createFakeRooms(rooms),
+            rooms: roomStore,
             players: playerStore,
             clock: new Clock(() => time),
             connections,
@@ -102,17 +105,22 @@ describe('EntryStatusManager', () => {
         });
 
         test('ignores rooms the socket did not name itself, even one its user plays in', () => {
-            const ann = subscribe(ANN, ['r1']);
+            // Ann plays in r2 and the admin in r1, but neither socket named that room.
+            const annInR1 = subscribe(ANN, ['r1']);
             const admin = subscribe(ADMIN, ['*']);
-            // Both would hear an entry wrongly admitted for their room.
-            const annInR2 = subscribe(ANN, ['r2']);
-            const bob = subscribe(BOB, ['r1']);
-
-            entries.receive(ann, { room_id: 'r2', state: 'typing', round: 1 });
+            entries.receive(annInR1, { room_id: 'r2', state: 'typing', round: 1 });
             entries.receive(admin, { room_id: 'r1', state: 'typing', round: 2 });
 
-            assert.deepEqual(annInR2.sent, []);
-            assert.deepEqual(bob.sent, []);
+            // Had either been let through, it would have started its user's one-second window in
+            // that room, and the same status from their socket that did name it would be dropped
+            // as a repeat.
+            const annInR2 = subscribe(ANN, ['r2']);
+            const adminInR1 = subscribe(ADMIN, ['r1']);
+            entries.receive(annInR2, { room_id: 'r2', state: 'typing', round: 1 });
+            entries.receive(adminInR1, { room_id: 'r1', state: 'typing', round: 2 });
+
+            assert.deepEqual(entriesSent(annInR2), [[{ player_id: 'ann-2', state: 'typing', round: 1 }]]);
+            assert.deepEqual(entriesSent(adminInR1), [[{ player_id: 'admin-1', state: 'typing', round: 2 }]]);
         });
 
         test('no entry for a round that is not open or a player who already submitted', () => {
@@ -193,13 +201,11 @@ describe('EntryStatusManager', () => {
             ann.sent.length = 0;
             rooms[1].status = 'finished';
             const error = new Error('broken room');
-            entries.rooms = {
-                get: (roomId) => {
-                    if (roomId === 'r1') {
-                        throw error;
-                    }
-                    return rooms.find((room) => room.id === roomId);
-                },
+            roomStore.get = (roomId) => {
+                if (roomId === 'r1') {
+                    throw error;
+                }
+                return rooms.find((room) => room.id === roomId);
             };
 
             entries.reconcileRooms(['r1', 'r2']);

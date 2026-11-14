@@ -20,6 +20,15 @@ function hostPlayerIdOf(room, players) {
 }
 
 export class VoteManager {
+    #rooms;
+    #players;
+    #connections;
+    #subscriptions;
+    #presence;
+    #logger;
+    #voteTopics;
+    #tracker;
+
     /**
      * `rooms` reads GameRooms ({ get(roomId) }) and `players` Players ({ listByRoom(roomId) }).
      * `clock` is the hub's Clock, `connections` the ConnectionManager, `subscriptions` the
@@ -44,16 +53,16 @@ export class VoteManager {
         holdMs,
         hostGraceMs,
     }) {
-        this.rooms = rooms;
-        this.players = players;
-        this.connections = connections;
-        this.subscriptions = subscriptions;
-        this.presence = presence;
-        this.logger = logger;
-        this.voteTopics = voteTopics;
+        this.#rooms = rooms;
+        this.#players = players;
+        this.#connections = connections;
+        this.#subscriptions = subscriptions;
+        this.#presence = presence;
+        this.#logger = logger;
+        this.#voteTopics = voteTopics;
 
         const topics = Object.keys(voteTopics);
-        this.tracker = createVoteTracker({
+        this.#tracker = createVoteTracker({
             topics,
             hostDecidesTopics: topics.filter((topic) => voteTopics[topic].hostDecides === true),
             holdMs,
@@ -77,19 +86,19 @@ export class VoteManager {
      * stay the same. A room nobody subscribes to any more is forgotten.
      */
     refreshRoom(roomId, presencePlayers, { force = false, skipSocket = null } = {}) {
-        if (!this.subscriptions.hasSubscribers(roomId)) {
-            this.tracker.forgetRoom(roomId);
+        if (!this.#subscriptions.hasSubscribers(roomId)) {
+            this.#tracker.forgetRoom(roomId);
             return;
         }
 
-        const room = this.rooms.get(roomId);
-        const hostPlayerId = hostPlayerIdOf(room, this.players.listByRoom(roomId));
+        const room = this.#rooms.get(roomId);
+        const hostPlayerId = hostPlayerIdOf(room, this.#players.listByRoom(roomId));
         const electorate = {
             onlinePlayerIds: onlinePlayerIdsOf(presencePlayers),
             hostPlayerId,
             hostOfflineSince: hostOfflineSinceOf(presencePlayers, hostPlayerId),
         };
-        const changes = this.tracker.setElectorate(roomId, electorate, { force });
+        const changes = this.#tracker.setElectorate(roomId, electorate, { force });
         this.#broadcast(changes, skipSocket);
     }
 
@@ -99,7 +108,7 @@ export class VoteManager {
      * re-evaluated against its cached presence.
      */
     roomHostChanged(roomId) {
-        const presencePlayers = this.presence.playersOf(roomId);
+        const presencePlayers = this.#presence.playersOf(roomId);
         if (presencePlayers) {
             this.refreshRoom(roomId, presencePlayers);
         }
@@ -114,16 +123,16 @@ export class VoteManager {
             return;
         }
 
-        const room = this.rooms.get(voter.roomId);
-        const players = this.players.listByRoom(voter.roomId);
+        const room = this.#rooms.get(voter.roomId);
+        const players = this.#players.listByRoom(voter.roomId);
         const isValid = typeof message.option === 'string'
-            && this.voteTopics[voter.topic].validateOption(room, players, message.option);
+            && this.#voteTopics[voter.topic].validateOption(room, players, message.option);
         if (!isValid) {
             this.#sendError(socket, message, 'invalid_option');
             return;
         }
 
-        const changes = this.tracker.hold(voter.roomId, voter.topic, {
+        const changes = this.#tracker.hold(voter.roomId, voter.topic, {
             socketId: socket,
             playerId: voter.player.id,
             option: message.option,
@@ -137,7 +146,7 @@ export class VoteManager {
         if (!voter) {
             return;
         }
-        this.#broadcast(this.tracker.release(voter.roomId, voter.topic, socket));
+        this.#broadcast(this.#tracker.release(voter.roomId, voter.topic, socket));
     }
 
     /** A socket that unsubscribed from `roomIds` (an array) lets go of its holds there. */
@@ -145,12 +154,12 @@ export class VoteManager {
         if (roomIds.length === 0) {
             return;
         }
-        this.#broadcast(this.tracker.dropSocket(socket, roomIds));
+        this.#broadcast(this.#tracker.dropSocket(socket, roomIds));
     }
 
     /** A closed socket lets go of its holds in every room. */
     dropAllHolds(socket) {
-        this.#broadcast(this.tracker.dropSocket(socket));
+        this.#broadcast(this.#tracker.dropSocket(socket));
     }
 
     /**
@@ -158,31 +167,31 @@ export class VoteManager {
      * the room, where the caller's forced presence refresh then sends every topic.
      */
     forgetHolds(socket, roomId) {
-        this.tracker.dropSocket(socket, [roomId]);
+        this.#tracker.dropSocket(socket, [roomId]);
     }
 
     // --- Sending -------------------------------------------------------------------
 
     /** Sends the socket the room's `vote` state for every topic. */
     sendStates(socket, roomId) {
-        for (const topic of Object.keys(this.voteTopics)) {
-            this.connections.send(socket, this.#buildMessage(roomId, topic));
+        for (const topic of Object.keys(this.#voteTopics)) {
+            this.#connections.send(socket, this.#buildMessage(roomId, topic));
         }
     }
 
     #buildMessage(roomId, topic) {
-        return { type: SERVER_MESSAGE.VOTE, room_id: roomId, topic, ...this.tracker.snapshot(roomId, topic) };
+        return { type: SERVER_MESSAGE.VOTE, room_id: roomId, topic, ...this.#tracker.snapshot(roomId, topic) };
     }
 
     /** Sends the `vote` state for each changed { roomId, topic } to its room. */
     #broadcast(changes, skipSocket = null) {
         for (const { roomId, topic } of changes) {
-            this.subscriptions.sendToRoom(roomId, this.#buildMessage(roomId, topic), skipSocket);
+            this.#subscriptions.sendToRoom(roomId, this.#buildMessage(roomId, topic), skipSocket);
         }
     }
 
     #sendError(socket, message, code) {
-        this.connections.send(socket, {
+        this.#connections.send(socket, {
             type: SERVER_MESSAGE.VOTE_ERROR,
             room_id: message.room_id ?? null,
             topic: message.topic ?? null,
@@ -203,12 +212,12 @@ export class VoteManager {
             this.#sendError(socket, message, 'bad_request');
             return null;
         }
-        if (!Object.hasOwn(this.voteTopics, topic)) {
+        if (!Object.hasOwn(this.#voteTopics, topic)) {
             this.#sendError(socket, message, 'unknown_topic');
             return null;
         }
 
-        const player = this.subscriptions.findSubscribedPlayer(socket, roomId);
+        const player = this.#subscriptions.findSubscribedPlayer(socket, roomId);
         if (!player) {
             this.#sendError(socket, message, 'not_member');
             return null;
@@ -224,9 +233,9 @@ export class VoteManager {
      * re-evaluates the votes through the action's publishing (see roomHostChanged).
      */
     #runPassedVote(roomId, topic, option) {
-        const definition = this.voteTopics[topic];
-        const room = this.rooms.get(roomId);
-        const isStillValid = definition.validateOption(room, this.players.listByRoom(roomId), option);
+        const definition = this.#voteTopics[topic];
+        const room = this.#rooms.get(roomId);
+        const isStillValid = definition.validateOption(room, this.#players.listByRoom(roomId), option);
 
         this.#broadcast([{ roomId, topic }]);
         if (!isStillValid) {
@@ -235,15 +244,15 @@ export class VoteManager {
 
         const result = definition.resolve(roomId, option);
         if (result.status !== 200) {
-            this.logger.warn(`Vote ${topic} in room ${roomId} failed: ${result.body.code}`);
+            this.#logger.warn(`Vote ${topic} in room ${roomId} failed: ${result.body.code}`);
             return;
         }
         const passed = { type: SERVER_MESSAGE.VOTE_PASSED, room_id: roomId, topic, option };
-        this.subscriptions.sendToRoom(roomId, passed);
+        this.#subscriptions.sendToRoom(roomId, passed);
     }
 
     /** Cancels every vote timer (the hub is closing). */
     close() {
-        this.tracker.close();
+        this.#tracker.close();
     }
 }
