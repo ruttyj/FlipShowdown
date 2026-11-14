@@ -8,10 +8,10 @@ export class SetGamesWonAction {
     allowedStatuses = OPEN_STATUSES;
 
     constructor({ scoringService }) {
-        this.scoring = scoringService;
+        this.scoringService = scoringService;
     }
 
     handle(work, body) {
-        this.scoring.setGamesWon(work, requireWins(body));
+        this.scoringService.setGamesWon(work, requireWins(body));
     }
 }

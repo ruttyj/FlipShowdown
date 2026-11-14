@@ -9,17 +9,19 @@ export class EditScoreAction {
     allowedStatuses = ['playing'];
 
     constructor({ scoringService }) {
-        this.scoring = scoringService;
+        this.scoringService = scoringService;
     }
 
     handle(work, body) {
-        // In this order, so a body with several problems gets the error it always has: an unknown
-        // player before a bad round, and a round out of range before bad score fields.
+        // Unlike the other handlers, this one loads the player and checks the round itself rather
+        // than leaving it to the service: the player lookup and the round's range check must sit
+        // between the body checks, so a body with several problems gets the error it always has
+        // (an unknown player before a bad round, and a round out of range before bad score fields).
         const player = work.getRoomPlayer(requirePlayerId(body));
         const roundNumber = requireRoundNumber(body);
         requireEditableRound(work.room, roundNumber);
         const score = requireScore(body);
 
-        return this.scoring.editScore(work, { player, roundNumber, score, gameMode: body.game_mode });
+        return this.scoringService.editScore(work, { player, roundNumber, score, gameMode: body.game_mode });
     }
 }

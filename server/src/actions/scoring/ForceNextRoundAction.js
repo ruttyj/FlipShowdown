@@ -7,10 +7,10 @@ export class ForceNextRoundAction {
     allowedStatuses = ['playing'];
 
     constructor({ scoringService }) {
-        this.scoring = scoringService;
+        this.scoringService = scoringService;
     }
 
     handle(work, body) {
-        this.scoring.forceNextRound(work, requireRoundNumber(body));
+        this.scoringService.forceNextRound(work, requireRoundNumber(body));
     }
 }

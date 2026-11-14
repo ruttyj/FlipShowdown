@@ -7,10 +7,10 @@ export class RetractScoreAction {
     allowedStatuses = ['playing'];
 
     constructor({ scoringService }) {
-        this.scoring = scoringService;
+        this.scoringService = scoringService;
     }
 
     handle(work, body) {
-        return this.scoring.retractScore(work, requireRoundNumber(body));
+        return this.scoringService.retractScore(work, requireRoundNumber(body));
     }
 }

@@ -5,10 +5,10 @@ export class EndGameAction {
     allowedStatuses = ['playing'];
 
     constructor({ scoringService }) {
-        this.scoring = scoringService;
+        this.scoringService = scoringService;
     }
 
     handle(work) {
-        this.scoring.endGame(work);
+        this.scoringService.endGame(work);
     }
 }

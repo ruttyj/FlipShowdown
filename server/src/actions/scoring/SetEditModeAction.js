@@ -7,10 +7,10 @@ export class SetEditModeAction {
     allowedStatuses = ['playing'];
 
     constructor({ scoringService }) {
-        this.scoring = scoringService;
+        this.scoringService = scoringService;
     }
 
     handle(work, body) {
-        this.scoring.setEditMode(work, requireBoolean(body, 'on'));
+        this.scoringService.setEditMode(work, requireBoolean(body, 'on'));
     }
 }

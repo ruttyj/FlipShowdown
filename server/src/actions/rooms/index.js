@@ -10,7 +10,10 @@ import { StartAction } from './StartAction.js';
 export { CreateRoomAction } from './CreateRoomAction.js';
 export { LookupByCodeAction } from './LookupByCodeAction.js';
 
-/** The registered room action handlers. `services` holds at least { roomService }. */
+/**
+ * The room action handlers, to register in an ActionRegistry under their `name`. `services`
+ * holds at least `roomService`, a RoomService.
+ */
 export function createRoomActions(services) {
     return [
         new SetGameModeAction(services),

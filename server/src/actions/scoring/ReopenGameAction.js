@@ -5,10 +5,10 @@ export class ReopenGameAction {
     allowedStatuses = ['finished'];
 
     constructor({ scoringService }) {
-        this.scoring = scoringService;
+        this.scoringService = scoringService;
     }
 
     handle(work) {
-        this.scoring.reopenGame(work);
+        this.scoringService.reopenGame(work);
     }
 }

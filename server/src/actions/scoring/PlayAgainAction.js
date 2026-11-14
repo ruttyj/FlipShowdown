@@ -5,10 +5,10 @@ export class PlayAgainAction {
     allowedStatuses = ['finished'];
 
     constructor({ scoringService }) {
-        this.scoring = scoringService;
+        this.scoringService = scoringService;
     }
 
     handle(work) {
-        this.scoring.playAgain(work);
+        this.scoringService.playAgain(work);
     }
 }

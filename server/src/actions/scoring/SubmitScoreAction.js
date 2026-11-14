@@ -7,7 +7,7 @@ export class SubmitScoreAction {
     allowedStatuses = ['playing'];
 
     constructor({ scoringService }) {
-        this.scoring = scoringService;
+        this.scoringService = scoringService;
     }
 
     handle(work, body) {
@@ -16,6 +16,6 @@ export class SubmitScoreAction {
             score: requireScore(body),
             gameMode: body.game_mode,
         };
-        return this.scoring.submitScore(work, request);
+        return this.scoringService.submitScore(work, request);
     }
 }
