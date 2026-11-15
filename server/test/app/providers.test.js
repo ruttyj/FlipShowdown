@@ -135,4 +135,23 @@ describe('server providers', () => {
         assert.deepEqual(calls, ['sweep', 'reporter', 'hub', 'server', 'store']);
         assert.equal(server.listening, false);
     });
+
+    test('close stops everything but the database before it returns, as callers may not await it', async () => {
+        startApp();
+        const server = app.get('httpServer');
+        await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+        const calls = [];
+        recordCalls(app.get('roomSweeper'), 'stop', 'sweep', calls);
+        recordCalls(app.get('launcherReporter'), 'close', 'reporter', calls);
+        recordCalls(app.get('hub'), 'close', 'hub', calls);
+        recordCalls(app.get('store'), 'close', 'store', calls);
+
+        const closing = app.close();
+        app = null;
+
+        assert.deepEqual(calls, ['sweep', 'reporter', 'hub']);
+        assert.equal(server.listening, false);
+        await closing;
+        assert.deepEqual(calls, ['sweep', 'reporter', 'hub', 'store']);
+    });
 });

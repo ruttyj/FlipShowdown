@@ -53,15 +53,30 @@ export function createActionRegistry(services) {
 }
 
 /**
+ * The RoomActionRunner over `store`: its database and repositories, a fresh AccessPolicy and
+ * `adminEmails` (a Set of lower-case emails). `getHub()` returns the realtime hub when the runner
+ * publishes; it is a function so the hub can be built after the runner (its vote topics need it).
+ * The one place a runner is wired, so the server and the adapters can't drift apart.
+ */
+export function buildRoomActionRunner({ store, adminEmails, getHub, logger }) {
+    return new RoomActionRunner({
+        database: store.database,
+        repositories: store.repositories,
+        store,
+        accessPolicy: new AccessPolicy(),
+        adminEmails,
+        getHub,
+        logger,
+    });
+}
+
+/**
  * A RoomActionRunner for the adapters' context ({ store, hub, config, logger }). The hub is read
  * from the context each time the runner publishes, so a test may set or replace it later.
  */
 export function createRoomActionRunner(context) {
-    return new RoomActionRunner({
-        database: context.store.database,
-        repositories: context.store.repositories,
+    return buildRoomActionRunner({
         store: context.store,
-        accessPolicy: new AccessPolicy(),
         adminEmails: context.config.adminEmails,
         getHub: () => context.hub,
         logger: context.logger,

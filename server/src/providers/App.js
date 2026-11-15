@@ -72,11 +72,39 @@ export class App {
         }
     }
 
-    /** Shuts the providers down in reverse order, each finishing before the next starts. */
-    async close() {
+    /**
+     * Shuts the providers down in reverse order, each finishing before the next starts, and
+     * returns a promise that settles once they all have.
+     *
+     * Synchronous shutdowns run before close() returns, and the chain only waits when a shutdown
+     * returns a promise. Callers that don't await close() (a signal handler) still get the sweep,
+     * reporter, hub and listening socket stopped at once; only the providers after the HTTP
+     * server's close (the database) wait for it.
+     */
+    close() {
         const reversed = [...this.#providers].reverse();
-        for (const provider of reversed) {
-            await provider.shutdown(this);
+        return shutDownFrom(reversed, 0, this);
+    }
+}
+
+/**
+ * Shuts down `providers[index]` and every later one. Continues synchronously until a shutdown
+ * returns a promise, then resumes after it settles. Always returns a promise; a throwing shutdown
+ * rejects it and skips the providers after it.
+ */
+function shutDownFrom(providers, index, app) {
+    for (let next = index; next < providers.length; next += 1) {
+        let result;
+        try {
+            result = providers[next].shutdown(app);
+        } catch (error) {
+            return Promise.reject(error);
+        }
+
+        const isPending = typeof result?.then === 'function';
+        if (isPending) {
+            return Promise.resolve(result).then(() => shutDownFrom(providers, next + 1, app));
         }
     }
+    return Promise.resolve();
 }

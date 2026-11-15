@@ -1,9 +1,10 @@
 import { RealtimeHub } from '../realtime/RealtimeHub.js';
 import { BaseProvider } from './BaseProvider.js';
 
-// The realtime hub: its managers, the WebSocket endpoint and the hold-to-vote topics. Building it
-// starts the connection timers; HttpProvider attaches it to the HTTP server. Shutting down stops
-// its callbacks, timers and sockets before the HTTP server closes.
+// The realtime hub: its managers and the WebSocket endpoint. It runs the hold-to-vote topics that
+// GameProvider registers. Building it starts the connection timers; HttpProvider attaches it to
+// the HTTP server. Shutting down stops its callbacks, timers and sockets before the HTTP server
+// closes.
 
 export class RealtimeProvider extends BaseProvider {
     register(app) {

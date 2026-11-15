@@ -142,6 +142,27 @@ describe('App', () => {
             assert.deepEqual(steps, ['c.shutdown', 'b.shutdown', 'b.finished', 'a.shutdown']);
         });
 
+        test('close runs synchronous shutdowns before it returns, up to the first promise', async () => {
+            const steps = [];
+            const app = new App({});
+            const slowShutdown = () => new Promise((resolve) => {
+                setTimeout(resolve, 5);
+            });
+            app.addProvider(new RecordingProvider('a', steps));
+            app.addProvider(new RecordingProvider('b', steps, { shutdown: slowShutdown }));
+            app.addProvider(new RecordingProvider('c', steps));
+            app.addProvider(new RecordingProvider('d', steps));
+            app.start();
+            steps.length = 0;
+
+            const closing = app.close();
+
+            assert.deepEqual(steps, ['d.shutdown', 'c.shutdown', 'b.shutdown']);
+            assert.ok(closing instanceof Promise);
+            await closing;
+            assert.deepEqual(steps, ['d.shutdown', 'c.shutdown', 'b.shutdown', 'a.shutdown']);
+        });
+
         test('a BaseProvider does nothing at every step', async () => {
             const app = new App({});
             app.addProvider(new BaseProvider());

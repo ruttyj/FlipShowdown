@@ -1,6 +1,4 @@
-import { AccessPolicy } from '../actions/AccessPolicy.js';
-import { createActionRegistry, createServices } from '../actions/createGameActions.js';
-import { RoomActionRunner } from '../actions/RoomActionRunner.js';
+import { buildRoomActionRunner, createActionRegistry, createServices } from '../actions/createGameActions.js';
 import { CreateRoomAction, LookupByCodeAction } from '../actions/rooms/index.js';
 import { createVoteTopics } from '../actions/VoteTopics.js';
 import { BaseProvider } from './BaseProvider.js';
@@ -30,11 +28,8 @@ export class GameProvider extends BaseProvider {
             return app.get('actionRegistry').require('delete');
         });
         app.register('roomActionRunner', () => {
-            return new RoomActionRunner({
-                database: app.get('database'),
-                repositories: app.get('repositories'),
+            return buildRoomActionRunner({
                 store: app.get('store'),
-                accessPolicy: new AccessPolicy(),
                 adminEmails: app.get('config').adminEmails,
                 // Looked up when the runner publishes rather than passed in: the hub's vote topics
                 // need this runner, so passing the hub would be a dependency cycle.
