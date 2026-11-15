@@ -112,7 +112,7 @@ td .none { color: var(--muted); }
 
 <section>
   <h2>1 · Layers</h2>
-  <p>Folders are grouped by role into six layers. A file may import its own layer and the ones below it, never above; <code>eslint.config.js</code> checks this with <code>no-restricted-imports</code>. Parts are classes that get their dependencies through the constructor. Only the providers call <code>app.get()</code> to wire them.</p>
+  <p>Folders are grouped by role into six layers. A file may import its own layer and the ones below it, never above; <code>eslint.config.js</code> checks this with <code>no-restricted-imports</code>. Parts are classes that get their dependencies through the constructor; the providers build them and their parts (the Gemini client, model catalog and rate limit <code>ScanService</code> uses, the <code>EntityGateway</code> <code>EntityService</code> uses) and only they call <code>app.get()</code>. The one deliberate exception is the hold-to-vote and entry status trackers (<code>managers/votes.js</code>, <code>managers/entryStatus.js</code>), pure factory modules that <code>VoteManager</code> and <code>EntryStatusManager</code> wrap.</p>
   <figure class="d1">
     <div class="scroll">
     <svg viewBox="0 0 1200 748" role="img" aria-label="Six layers from top to bottom: compose (app.js and the providers), entry (http and realtime), handlers (actions), logic (managers and services), data (repositories and database) and base (domain, lib, config). Imports only point down. Phones talk to the entry layer, services call the Gemini API and the database opens flip7.db.">
@@ -203,13 +203,13 @@ td .none { color: var(--muted); }
       <path d="M960,593 H990" class="edge" marker-end="url(#m1)"/>
     </svg>
     </div>
-    <figcaption>Imports point down the arrow on the left. Two folders sit outside the layers: <code>gameActions/</code> keeps the old game-action functions for the tests, and lint stops production code importing it; <code>database/db.js</code> may only be imported by <code>providers/</code>. <code>realtime/hub.js</code> and <code>database/eventLog.js</code> are test adapters too.</figcaption>
+    <figcaption>Imports point down the arrow on the left. Two folders sit outside the layers: <code>gameActions/</code> keeps the old game-action functions for the tests, and lint stops production code importing it; <code>database/db.js</code> may only be imported by <code>providers/</code>. A few other exports are test adapters too (listed at the bottom of this page and in <code>docs/testing.md</code>).</figcaption>
   </figure>
 </section>
 
 <section>
   <h2>2 · Store and repositories</h2>
-  <p>Production code reads and writes through the repositories, which <code>DatabaseProvider</code> hands out as <code>repositories</code>. One repository per table shares <code>TableRepository</code>; <code>EntityGateway</code> picks the repository for an entity name, so any name allowed by <code>ENTITIES</code> without a table of its own becomes a JSON row in <code>records</code>. The record-shaped store from <code>openStore()</code> is the tests' API; production uses it in only three places that tests patch or count (see <code>docs/testing.md</code>).</p>
+  <p>Production code reads and writes through the repositories, which <code>DatabaseProvider</code> hands out as <code>repositories</code>. One repository per table shares <code>TableRepository</code>; <code>EntityGateway</code> picks the repository for an entity name, so any name allowed by <code>ENTITIES</code> without a table of its own becomes a JSON row in <code>records</code>. The record-shaped store from <code>openStore()</code> is the tests' API; production uses it in only three places that tests patch or count (see <code>docs/testing.md</code>), so only <code>buildRoomActionRunner</code>, <code>EntityService</code> and <code>createStoreViews</code> are given the store.</p>
   <figure class="d2">
     <div class="scroll">
     <svg viewBox="0 0 1000 510" role="img" aria-label="Production code uses the repositories directly, and EntityService uses EntityGateway. The store facade's record methods go through EntityGateway, and its user methods and event log go to UserRepository and EventRepository. Every repository runs on Database, which owns the one connection to the SQLite tables.">
@@ -290,7 +290,7 @@ td .none { color: var(--muted); }
       <rect x="867" y="450" width="110" height="44" rx="6" class="box table"/><text x="922" y="476" class="tn" text-anchor="middle">meta</text>
     </svg>
     </div>
-    <figcaption>Writing a Player or a GameRoom with an email the database has not seen creates that user on the way (<code>UserRepository.resolveId</code>), inside the same transaction. <code>TableRepository</code> turns SQLite constraint errors into a <code>StoreError</code> (400 or 409). The three production calls left on the facade are <code>RoomUnitOfWork.loadRoom</code> (<code>getRecord</code>), <code>EntityService.create</code> (<code>createRecords</code>) and the realtime managers' <code>players.listByRoom</code> (<code>findRecords</code>).</figcaption>
+    <figcaption>Writing a Player or a GameRoom with an email the database has not seen creates that user on the way (<code>UserRepository.resolveId</code>), inside the same transaction. <code>TableRepository</code> turns SQLite constraint errors into a <code>StoreError</code> (400 or 409). The three production calls left on the facade are <code>RoomUnitOfWork.loadRoom</code> (<code>getRecord</code>, through the <code>readRoom</code> that <code>buildRoomActionRunner</code> wires), <code>EntityService.create</code> (<code>createRecords</code>) and the realtime managers' <code>players.listByRoom</code> (<code>findRecords</code>, in <code>storeViews.js</code>).</figcaption>
   </figure>
 </section>
 
@@ -625,10 +625,11 @@ td .none { color: var(--muted); }
       <li><code>lib/RateLimiter.js</code> the sliding-window limit <code>ScanService</code> uses</li>
       <li><code>http/loginPage.js</code> renders the dev login HTML</li></ul></div>
     <div><h3>Kept for the tests</h3><ul>
-      <li><code>gameActions/</code> the old game-action functions and <code>roomTx</code></li>
+      <li><code>gameActions/</code> the old game-action functions, <code>roomTx</code> (with <code>createRoomActionRunner</code>), <code>rooms</code>, <code>rounds</code>, <code>voteTopics</code></li>
       <li><code>realtime/hub.js</code> <code>createRealtimeHub</code></li>
       <li><code>database/eventLog.js</code> <code>createEventLog</code></li>
-      <li><code>managers/roomStats.js</code> <code>buildRoomStats</code></li></ul></div>
+      <li><code>managers/roomStats.js</code> <code>buildRoomStats</code>, <code>managers/LauncherReporter.js</code> <code>createLauncherReporter</code></li>
+      <li><code>services/ai/gemini.js</code> <code>createGeminiClient</code>, <code>services/ai/aiModels.js</code> <code>createModelCatalog</code></li></ul></div>
   </div>
 </section>
 </div>

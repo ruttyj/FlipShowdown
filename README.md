@@ -189,10 +189,24 @@ the same structure, with a game action's path and who reads and writes each tabl
 | Data | `repositories/`, `database/` | One repository per table on a shared `TableRepository`, plus `EntityGateway` for any entity name. `Database` owns the connection, transactions, migrations and backups. See [docs/database.md](docs/database.md) |
 | Base | `domain/`, `lib/`, `config/` | Errors, entity names, player helpers and the `Clock` (`domain/` imports nothing else from `server/src`), small helpers (email, query parsing, rate limiting) and configuration |
 
-Some files are only there for the tests: `gameActions/` (the old game-action functions, which lint
-stops production code importing), `realtime/hub.js` and `database/eventLog.js`. `database/db.js`
-opens the store, whose record-shaped methods (`findRecords`, `createRecords`, ...) are the tests'
-API; production code uses its repositories, and only `providers/` may import it.
+Parts get what they use through their constructors: repositories, `database` or `EntityGateway`,
+and parts the providers build (the Gemini client, model catalog and scan rate limit for
+`ScanService`). `database/db.js` opens the store, whose record-shaped methods (`findRecords`,
+`createRecords`, ...) are the tests' API, and only `providers/` may import it. Production code
+calls the store in just three places, each kept because a test replaces or counts that call:
+`RoomUnitOfWork.loadRoom` (the `readRoom` that `buildRoomActionRunner` wires to
+`store.getRecord`), `EntityService.create` (`store.createRecords`) and `players.listByRoom` in
+`managers/storeViews.js` (`store.findRecords`). So only `EntityService`, `buildRoomActionRunner`
+and `createStoreViews` are given the store. [docs/testing.md](docs/testing.md#gotchas) names the
+tests.
+
+Parts are classes, with one deliberate exception: the hold-to-vote and entry status trackers
+(`managers/votes.js`, `managers/entryStatus.js`) stay pure factory modules, wrapped by
+`VoteManager` and `EntryStatusManager`.
+
+Some exports are only there for the tests, which import them by path; docs/testing.md lists them.
+The largest is `gameActions/`, the old game-action functions, which lint stops production code
+importing.
 
 ## Development
 

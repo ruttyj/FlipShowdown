@@ -259,22 +259,35 @@ code changes on every run.
   held state is then applied by a real timer, which ignores that clock, so a test of it really waits.
 - Some server tests replace or count methods on the running server's objects, so production code
   must keep calling those methods through the object at call time (not a copy taken at build time).
-  Production code otherwise uses the repositories; the store facade (`database/db.js`) call sites
-  left are exactly the ones a test pins:
-  - `RoomUnitOfWork.loadRoom` → `store.getRecord` (`staleRooms.test.js` makes it throw);
+  Production code otherwise takes repositories through its constructors; the store facade
+  (`database/db.js`) calls left are exactly the ones a test pins, and they are why
+  `buildRoomActionRunner`, `EntityService` and `createStoreViews` are the only production code
+  given the store:
+  - `RoomUnitOfWork.loadRoom` → its `readRoom`, which `buildRoomActionRunner` wires to
+    `store.getRecord` (`staleRooms.test.js` makes it throw);
   - `EntityService.create` → `store.createRecords` (`coverageGaps.test.js` makes it fail);
   - `players.listByRoom` in `managers/storeViews.js` → `store.findRecords` (`entryStatus.test.js`
-    counts the calls; that check also passes with 0 lookups, so it proves little);
-  - `buildRoomStats` in `managers/roomStats.js`, an adapter only `roomStats.test.js` uses.
+    counts the calls; that check also passes with 0 lookups, so it proves little).
 
   The hub is the same: `rooms.test.js`, `coverageGaps.test.js` and `RoomActionRunner.test.js`
   replace `hub.publishAll` and `hub.roomMembershipChanged`, which is why the runner gets the hub
   through `getHub()` and `EntityService` holds the hub object. Moving one of these call sites to a
   repository, or caching a hub method, keeps its test green but makes it check nothing.
-- The test-facing adapters keep the old function API that tests import by path: `gameActions/`
-  (game actions and `roomTx`; lint bans production imports of it), `realtime/hub.js`
-  (`createRealtimeHub`), `database/eventLog.js` (`createEventLog`) and `database/db.js` (`openStore`,
-  `openDatabase`; lint lets only `providers/` import it). Build new tests on the classes when you can.
+- Test-facing adapters and re-exports keep the API that tests import by path. Production code
+  doesn't use them; build new tests on the classes when you can:
+  - `gameActions/`: the old game actions (`ACTIONS`), `roomTx` (`runRoomAction`,
+    `createRoomActionRunner`, the unit-of-work functions), `rooms`, `rounds` and `voteTopics`. Lint
+    bans production imports of it. `ACTIONS[name].run(tx)` and `createRoom(tx)` only work on a
+    `tx` that `runRoomAction` is running, since that is how they find the store;
+  - `realtime/hub.js` (`createRealtimeHub`, over a store), `database/eventLog.js`
+    (`createEventLog`), `managers/roomStats.js` (`buildRoomStats`) and
+    `managers/LauncherReporter.js` (`createLauncherReporter`);
+  - `services/ai/gemini.js` (`createGeminiClient`) and `services/ai/aiModels.js`
+    (`createModelCatalog`); `createAuthenticator` is not one, as `AuthProvider` uses it too;
+  - `database/db.js` (`openStore`, `openDatabase`; lint lets only `providers/` import it);
+  - re-exports: `normaliseEmail` from `services/auth.js` (`email.test.js`), `StoreError` from
+    `database/entityTables.js` (`store.test.js`) and the entity names from `gameActions/roomTx.js`
+    (`invariantDriver.js`).
 - **Case-only renames clash in worktrees on Windows.** The file system is case-insensitive, so
   `server/src/app.js` and an `App.js` beside it are one file (that is why the container is
   `providers/App.js`), and a checkout or rebase across the rename of `managers/launcherReporter.js`
