@@ -29,7 +29,9 @@ function createExpressApp(app) {
     expressApp.get('/api/health', (req, res) => {
         res.json({ ok: true });
     });
-    // Before the global JSON parser: the scan route parses its own, larger photo bodies.
+    // Before the global JSON parser: the scan route parses its own, larger photo bodies. Unlike the
+    // other controllers' routers, this one is built by AiProvider (registered as 'aiRouter', a name
+    // the provider tests pin) so all the AI wiring stays in that provider.
     expressApp.use('/api/ai', requireUser, app.get('aiRouter'));
     expressApp.use('/api', express.json({ limit: JSON_BODY_LIMIT }));
     expressApp.use('/api/auth', authController.router());
@@ -39,7 +41,7 @@ function createExpressApp(app) {
     expressApp.use('/api', requireUser, apiNotFound);
 
     expressApp.use(authController.loginRouter());
-    app.get('staticController').routes(expressApp);
+    expressApp.use(app.get('staticController').router());
     expressApp.use(createErrorHandler(app.get('logger')));
     return expressApp;
 }

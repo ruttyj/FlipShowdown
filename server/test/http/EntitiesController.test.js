@@ -83,26 +83,25 @@ describe('EntitiesController', () => {
         assert.deepEqual(entities.calls, []);
     });
 
-    test('a list parses the query and answers the page', async () => {
+    test('a list parses the query once and gives it to the check and the read', async () => {
         const response = await harness.request('GET', '/api/entities/Note?limit=5');
 
         assert.equal(response.status, 200);
         assert.deepEqual(response.body, [{ id: 'n1' }]);
-        const [check, user, checkedName, rawQuery] = entities.calls[0];
+        const [check, user, checkedName, checkedQuery] = entities.calls[0];
         assert.deepEqual([check, user, checkedName], ['canList', USER, 'Note']);
-        // Express gives the raw query a null prototype.
-        assert.deepEqual({ ...rawQuery }, { limit: '5' });
+        assert.equal(checkedQuery.limit, 5);
         const [, entityName, query] = entities.calls[1];
         assert.equal(entityName, 'Note');
-        assert.equal(query.limit, 5);
+        assert.equal(query, checkedQuery);
     });
 
-    test('a malformed list query is a 400 with the parser message', async () => {
+    test('a malformed list query is a 400 with the parser message, before the check', async () => {
         const response = await harness.request('GET', '/api/entities/Note?q=nope');
 
         assert.equal(response.status, 400);
         assert.equal(typeof response.body.message, 'string');
-        assert.deepEqual(entities.calls.map((call) => call[0]), ['canList']);
+        assert.deepEqual(entities.calls, []);
     });
 
     test('a refused check is a 403 forbidden, before the body is checked', async () => {
@@ -180,7 +179,7 @@ describe('EntitiesController', () => {
         }
     });
 
-    test('get, update and delete pass the user and id to their checks', async () => {
+    test('get, update and delete are 403 when their check refuses, before the body check', async () => {
         entities.allowed = { canGet: false, canModify: false };
 
         const responses = [

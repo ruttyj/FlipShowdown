@@ -105,6 +105,28 @@ describe('requireObjectBody', () => {
         check({ body: null }, res, recordingNext());
         assert.equal(res.statusCode, 400);
     });
+
+    test('optional string fields may be missing, null or a string, and nothing else', () => {
+        const check = requireObjectBody({ message: 'Bad', optionalStringFields: ['name'] });
+        for (const body of [{}, { name: null }, { name: 'Ann' }, { name: '' }]) {
+            const next = recordingNext();
+
+            check({ body }, fakeResponse(), next);
+
+            assert.deepEqual(next.calls, [[]], JSON.stringify(body));
+        }
+
+        for (const body of [{ name: 5 }, { name: false }, { name: ['Ann'] }, { name: {} }]) {
+            const res = fakeResponse();
+            const next = recordingNext();
+
+            check({ body }, res, next);
+
+            assert.equal(res.statusCode, 400, JSON.stringify(body));
+            assert.deepEqual(res.body, { message: 'Bad' });
+            assert.deepEqual(next.calls, []);
+        }
+    });
 });
 
 describe('requireArrayOfObjectsBody', () => {

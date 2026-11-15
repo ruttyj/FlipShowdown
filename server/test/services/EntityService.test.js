@@ -60,7 +60,7 @@ describe('EntityService', () => {
                 { entities: createService(true), user: OUTSIDER, entityName: 'Note' },
             ];
             for (const { entities, user, entityName } of cases) {
-                assert.equal(entities.canList(user, entityName, {}), true);
+                assert.equal(entities.canList(user, entityName, { filter: {} }), true);
                 assert.equal(entities.canGet(user, entityName, 'missing'), true);
                 assert.equal(entities.canCreate(user, entityName, {}), true);
                 assert.equal(entities.canBulkCreate(user, entityName, [{}]), true);
@@ -79,27 +79,23 @@ describe('EntityService', () => {
         });
 
         test('a list must name a room the user is in', () => {
-            const byRoom = { q: JSON.stringify({ room_id: roomId }) };
+            const byRoom = { filter: { room_id: roomId } };
 
             assert.equal(entities.canList(GUEST, 'Player', byRoom), true);
             assert.equal(entities.canList(OUTSIDER, 'Player', byRoom), false);
-            assert.equal(entities.canList(GUEST, 'Player', {}), false);
+            assert.equal(entities.canList(GUEST, 'Player', { filter: {} }), false);
         });
 
         test('a room list must be by an id or a code of rooms the user is in', () => {
-            const byId = { q: JSON.stringify({ id: roomId }) };
-            const byCode = { q: JSON.stringify({ code: 'ABCDEF' }) };
+            const byId = { filter: { id: roomId } };
+            const byCode = { filter: { code: 'ABCDEF' } };
 
             assert.equal(entities.canList(GUEST, 'GameRoom', byId), true);
             assert.equal(entities.canList(OUTSIDER, 'GameRoom', byId), false);
             assert.equal(entities.canList(GUEST, 'GameRoom', byCode), true);
             assert.equal(entities.canList(OUTSIDER, 'GameRoom', byCode), false);
-            assert.equal(entities.canList(GUEST, 'GameRoom', { q: JSON.stringify({ code: 'NONE00' }) }), false);
-            assert.equal(entities.canList(GUEST, 'GameRoom', { q: JSON.stringify({ code: 5 }) }), false);
-        });
-
-        test('a malformed list query passes, so the route answers 400', () => {
-            assert.equal(entities.canList(OUTSIDER, 'Player', { q: 'nope' }), true);
+            assert.equal(entities.canList(GUEST, 'GameRoom', { filter: { code: 'NONE00' } }), false);
+            assert.equal(entities.canList(GUEST, 'GameRoom', { filter: { code: 5 } }), false);
         });
 
         test('a read by id must be of a room the user is in, or a record in one', () => {

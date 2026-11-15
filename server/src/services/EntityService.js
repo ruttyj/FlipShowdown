@@ -1,5 +1,5 @@
 import { CHAT_MESSAGE, PLAYER, ROOM, ROUND_SCORE } from '../domain/entities.js';
-import { QueryError, isPlainObject, matchesFilter, paginate, parseListQuery, sortEntries } from '../lib/query.js';
+import { isPlainObject, matchesFilter, paginate, sortEntries } from '../lib/query.js';
 
 // The generic entity API behind /api/entities: who may reach which records while
 // LOCK_GAME_ENTITIES is on, the reads and writes themselves, and the realtime events a write sends.
@@ -30,7 +30,8 @@ export class EntityService {
 
     // --- Lock-down (LOCK_GAME_ENTITIES) ----------------------------------
     // Each can* method is true when the lock doesn't apply to this user and entity. A request
-    // whose query or body is malformed passes, so its route answers 400 rather than 403.
+    // whose body is malformed passes, so its route answers 400 rather than 403. (A malformed list
+    // query never gets here: the route answers 400 before the check.)
 
     /** Whether the lock applies: it is on, the entity is game data and the user isn't an admin. */
     #isLockedFor(user, entityName) {
@@ -75,7 +76,7 @@ export class EntityService {
     }
 
     /**
-     * A list read (`query` is the raw request query) must name a room the user belongs to. The
+     * A list read (`query` as parseListQuery returns it) must name a room the user belongs to. The
      * client never looks rooms up by code through this route (the join screen uses the rooms
      * API), so a `code` read needs membership like any other.
      */
@@ -84,16 +85,7 @@ export class EntityService {
             return true;
         }
 
-        let filter;
-        try {
-            filter = parseListQuery(query).filter;
-        } catch (error) {
-            if (error instanceof QueryError) {
-                return true;
-            }
-            throw error;
-        }
-
+        const filter = query.filter;
         if (entityName !== ROOM) {
             return this.#isRoomMember(filter.room_id, user.email);
         }

@@ -14,6 +14,24 @@ function sendError(res, status, message) {
     res.status(status).json({ message });
 }
 
+/**
+ * Route middleware: sets req.listQuery to the parsed list query (filter, sort, skip, limit), or
+ * answers 400 with the parser message. It runs before the lock-down guard, which reads the filter;
+ * a malformed query is a 400 whether or not the lock applies.
+ */
+function parseQuery(req, res, next) {
+    try {
+        req.listQuery = parseListQuery(req.query);
+    } catch (error) {
+        if (error instanceof QueryError) {
+            sendError(res, 400, error.message);
+            return;
+        }
+        throw error;
+    }
+    next();
+}
+
 /** Route middleware: goes on when `isAllowed(req)` (the LOCK_GAME_ENTITIES rule), else 403. */
 function allowIf(isAllowed) {
     return function lockdownGuard(req, res, next) {
@@ -36,13 +54,13 @@ export class EntitiesController extends Controller {
         router.param('name', (req, res, next, name) => this.findEntity(req, res, next, name));
 
         const canBulkCreate = (req) => this.entities.canBulkCreate(req.user, req.entityName, req.body);
-        const canList = (req) => this.entities.canList(req.user, req.entityName, req.query);
+        const canList = (req) => this.entities.canList(req.user, req.entityName, req.listQuery);
         const canCreate = (req) => this.entities.canCreate(req.user, req.entityName, req.body);
         const canGet = (req) => this.entities.canGet(req.user, req.entityName, req.params.id);
         const canModify = (req) => this.entities.canModify(req.user, req.entityName);
 
         router.post('/:name/bulk', allowIf(canBulkCreate), arrayOfObjectsBody, (req, res) => this.bulkCreate(req, res));
-        router.get('/:name', allowIf(canList), (req, res) => this.list(req, res));
+        router.get('/:name', parseQuery, allowIf(canList), (req, res) => this.list(req, res));
         router.post('/:name', allowIf(canCreate), objectBody, (req, res) => this.create(req, res));
         router.get('/:name/:id', allowIf(canGet), (req, res) => this.get(req, res));
         router.put('/:name/:id', allowIf(canModify), objectBody, (req, res) => this.update(req, res));
@@ -61,18 +79,7 @@ export class EntitiesController extends Controller {
     }
 
     list(req, res) {
-        let query;
-        try {
-            query = parseListQuery(req.query);
-        } catch (error) {
-            if (error instanceof QueryError) {
-                sendError(res, 400, error.message);
-                return;
-            }
-            throw error;
-        }
-
-        res.json(this.entities.list(req.entityName, query));
+        res.json(this.entities.list(req.entityName, req.listQuery));
     }
 
     get(req, res) {

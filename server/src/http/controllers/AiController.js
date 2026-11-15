@@ -1,4 +1,5 @@
 import express from 'express';
+import { ScanOutcome } from '../../services/ai/ScanService.js';
 import { requireObjectBody } from '../middleware/jsonBody.js';
 import { Controller } from './Controller.js';
 
@@ -10,6 +11,13 @@ import { Controller } from './Controller.js';
 const SCAN_BODY_LIMIT = '6mb';
 
 const scanBody = requireObjectBody({ message: 'Body must be a JSON object with an image data URL' });
+
+// The status for each failed ScanOutcome. A busy AI is a 429 so the client tells the user to wait.
+const FAILURE_STATUS = Object.freeze({
+    [ScanOutcome.INVALID_REQUEST]: 400,
+    [ScanOutcome.AI_BUSY]: 429,
+    [ScanOutcome.AI_FAILED]: 502,
+});
 
 function sendError(res, status, message) {
     res.status(status).json({ message });
@@ -57,6 +65,10 @@ export class AiController extends Controller {
 
     async scanCards(req, res) {
         const result = await this.scans.scan(req.body);
-        res.status(result.status).json(result.body);
+        if (result.outcome === ScanOutcome.SCANNED) {
+            res.json({ cards: result.cards, model: result.model });
+            return;
+        }
+        sendError(res, FAILURE_STATUS[result.outcome], result.message);
     }
 }

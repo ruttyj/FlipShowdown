@@ -1,4 +1,4 @@
-import { createSessionToken, normaliseName } from './auth.js';
+import { createSessionToken, normaliseEmail, normaliseName } from './auth.js';
 
 // The signed-in user: found or created from a verified identity, renamed, given a dev session, and
 // shaped for the API. A user's role is never stored; it comes from ADMIN_EMAILS on every read.
@@ -35,13 +35,19 @@ export class UserService {
     }
 
     /**
-     * Signs a dev-mode user in: creates them on first sight (an existing user keeps their stored
-     * name unless `fullName` is non-empty) and returns the session cookie's token. `email` and
-     * `fullName` are already normalised.
+     * Signs a dev-mode user in from the sign-in form's raw `email` and `fullName` fields, which are
+     * normalised here as rename() does: creates the user on first sight (an existing user keeps
+     * their stored name unless `fullName` is non-empty) and returns the session cookie's token, or
+     * null when `email` is not a valid address.
      */
     startDevSession(email, fullName) {
-        const user = this.store.upsertUser(email, fullName);
-        return createSessionToken(this.sessionSecret, { email, full_name: user.full_name });
+        const normalisedEmail = normaliseEmail(email);
+        if (!normalisedEmail) {
+            return null;
+        }
+
+        const user = this.store.upsertUser(normalisedEmail, normaliseName(fullName));
+        return createSessionToken(this.sessionSecret, { email: normalisedEmail, full_name: user.full_name });
     }
 
     /** The API shape of a users row. */

@@ -22,7 +22,7 @@ describe('StaticController with a built client', () => {
         fs.writeFileSync(path.join(staticDir, 'THIRD_PARTY_NOTICES.txt'), 'notices');
         warnings = [];
         const controller = new StaticController({ staticDir, logger: { warn: (message) => warnings.push(message) } });
-        harness = await serveApp((app) => controller.routes(app));
+        harness = await serveApp((app) => app.use(controller.router()));
     });
 
     after(async () => {
@@ -77,7 +77,7 @@ describe('StaticController without a built client', () => {
         const staticDir = path.join(os.tmpdir(), 'flip7-static-missing');
         const warnings = [];
         const controller = new StaticController({ staticDir, logger: { warn: (message) => warnings.push(message) } });
-        const harness = await serveApp((app) => controller.routes(app));
+        const harness = await serveApp((app) => app.use(controller.router()));
 
         try {
             const response = await harness.request('GET', '/');
@@ -87,12 +87,14 @@ describe('StaticController without a built client', () => {
             await harness.close();
         }
     });
+});
 
-    test('/licenses without the notices file falls through to the SPA index', async () => {
+describe('StaticController with a client built without notices', () => {
+    test('/licenses falls through to the SPA index', async () => {
         const staticDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flip7-static-'));
         fs.writeFileSync(path.join(staticDir, 'index.html'), '<!doctype html>');
         const controller = new StaticController({ staticDir, logger: { warn() {} } });
-        const harness = await serveApp((app) => controller.routes(app));
+        const harness = await serveApp((app) => app.use(controller.router()));
 
         try {
             const response = await harness.request('GET', '/licenses');

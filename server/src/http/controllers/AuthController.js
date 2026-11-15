@@ -1,5 +1,5 @@
 import express from 'express';
-import { SESSION_COOKIE, normaliseEmail, normaliseName, sessionCookieOptions } from '../../services/auth.js';
+import { SESSION_COOKIE, normaliseName, sessionCookieOptions } from '../../services/auth.js';
 import { renderCloudflareInfoPage, renderDevLoginPage } from '../loginPage.js';
 import { requireObjectBody } from '../middleware/jsonBody.js';
 import { safeRedirectTarget } from '../safeRedirect.js';
@@ -46,7 +46,7 @@ export class AuthController extends Controller {
 
     /** /api/auth, behind the global JSON parser. */
     routes(router) {
-        const nameBody = requireObjectBody({ message: NAME_BODY_MESSAGE });
+        const nameBody = requireObjectBody({ message: NAME_BODY_MESSAGE, optionalStringFields: ['full_name'] });
 
         router.get('/me', this.requireUser, (req, res) => this.getMe(req, res));
         router.put('/me', this.requireUser, nameBody, (req, res) => this.updateMe(req, res));
@@ -77,16 +77,7 @@ export class AuthController extends Controller {
     }
 
     updateMe(req, res) {
-        const fullName = req.body.full_name;
-        const isValidName = fullName === undefined
-            || fullName === null
-            || typeof fullName === 'string';
-        if (!isValidName) {
-            res.status(400).json({ message: NAME_BODY_MESSAGE });
-            return;
-        }
-
-        const user = this.users.rename(req.user, fullName);
+        const user = this.users.rename(req.user, req.body.full_name);
         res.json(this.users.toResponse(user));
     }
 
@@ -126,21 +117,20 @@ export class AuthController extends Controller {
     submitDevLogin(req, res) {
         const body = req.body || {};
         const fromUrl = stringField(body.from_url);
-        const email = normaliseEmail(body.email);
-        const fullName = normaliseName(body.full_name);
 
-        if (!email) {
+        const token = this.users.startDevSession(body.email, body.full_name);
+        if (!token) {
+            // The form comes back with the name trimmed and capped, as it would have been stored.
             const page = renderDevLoginPage({
                 fromUrl,
                 email: stringField(body.email),
-                fullName: fullName || '',
+                fullName: normaliseName(body.full_name) || '',
                 error: 'Please enter a valid email address.',
             });
             sendHtml(res, 400, page);
             return;
         }
 
-        const token = this.users.startDevSession(email, fullName);
         res.cookie(SESSION_COOKIE, token, sessionCookieOptions(req.secure));
         res.redirect(303, safeRedirectTarget(fromUrl, requestOrigin(req)));
     }

@@ -12,12 +12,18 @@ function sendBadBody(res, message, code) {
     res.status(400).json(body);
 }
 
+/** A field that is missing, null or a string. */
+function isOptionalString(value) {
+    return value === undefined || value === null || typeof value === 'string';
+}
+
 /**
  * The body must be a JSON object, or the request is answered 400 with `message` (and `code`).
  * With `missingAsEmpty`, a request that sent no body (req.body undefined) goes on with
- * req.body = {}, as the game actions take an empty body to mean "no arguments".
+ * req.body = {}, as the game actions take an empty body to mean "no arguments". Each field named in
+ * `optionalStringFields` must be missing, null or a string, or the request gets the same 400.
  */
-export function requireObjectBody({ message, code, missingAsEmpty = false }) {
+export function requireObjectBody({ message, code, missingAsEmpty = false, optionalStringFields = [] }) {
     return function objectBody(req, res, next) {
         const isMissing = req.body === undefined;
         if (missingAsEmpty && isMissing) {
@@ -27,6 +33,12 @@ export function requireObjectBody({ message, code, missingAsEmpty = false }) {
         }
 
         if (!isPlainObject(req.body)) {
+            sendBadBody(res, message, code);
+            return;
+        }
+
+        const hasBadField = optionalStringFields.some((field) => !isOptionalString(req.body[field]));
+        if (hasBadField) {
             sendBadBody(res, message, code);
             return;
         }

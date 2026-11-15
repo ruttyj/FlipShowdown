@@ -48,23 +48,36 @@ function parseImageDataUrl(value) {
 
 // --- Results -------------------------------------------------------------
 
-/** A failed scan as the route answers it. */
-function failure(status, message) {
-    return { status, body: { message } };
+/**
+ * What a scan can end in (the `outcome` of its result). The controller turns each into a status.
+ * SCANNED carries { cards, model }; the others carry the { message } the user sees.
+ */
+export const ScanOutcome = Object.freeze({
+    SCANNED: 'scanned',
+    // The image or the model asked for is not acceptable.
+    INVALID_REQUEST: 'invalid_request',
+    // Gemini is rate-limiting the server's key.
+    AI_BUSY: 'ai_busy',
+    // Gemini failed or gave an answer we can't read.
+    AI_FAILED: 'ai_failed',
+});
+
+function failure(outcome, message) {
+    return { outcome, message };
 }
 
 /** Maps a Gemini failure to the result the client sees. */
 function describeGeminiFailure(error) {
     if (error.status === 429) {
         return failure(
-            429,
+            ScanOutcome.AI_BUSY,
             'The AI service is busy right now. Wait a minute and try again, or enter the score manually.',
         );
     }
     if (error.status === 504) {
-        return failure(502, 'The AI model took too long to answer. Try again.');
+        return failure(ScanOutcome.AI_FAILED, 'The AI model took too long to answer. Try again.');
     }
-    return failure(502, 'The AI model could not read this photo. Try again or pick another model.');
+    return failure(ScanOutcome.AI_FAILED, 'The AI model could not read this photo. Try again or pick another model.');
 }
 
 // --- Service -------------------------------------------------------------
@@ -124,18 +137,22 @@ export class ScanService {
 
     /**
      * Reads the cards in a photo. `request` is the scan body ({ image, model?, mode? }, an object).
-     * Resolves to { status, body }: 200 with { cards, model }, or an error status with { message }.
-     * Only scanning must be enabled; anything but a Gemini failure is thrown.
+     * Resolves to { outcome: SCANNED, cards, model } or { outcome, message } for a failure (see
+     * ScanOutcome). Throws when scanning is disabled, and for anything but a Gemini failure.
      */
     async scan(request) {
+        if (!this.isEnabled()) {
+            throw new Error('AI card scanning is disabled; check isEnabled() before scanning');
+        }
+
         const parsedImage = parseImageDataUrl(request.image);
         if (parsedImage.error) {
-            return failure(400, parsedImage.error);
+            return failure(ScanOutcome.INVALID_REQUEST, parsedImage.error);
         }
 
         const model = await this.#resolveModel(request.model);
         if (!model) {
-            return failure(400, 'Unknown model');
+            return failure(ScanOutcome.INVALID_REQUEST, 'Unknown model');
         }
 
         const scanMode = getScanMode(request.mode);
@@ -154,9 +171,9 @@ export class ScanService {
         const cards = normaliseScanResult(result, scanMode);
         if (!cards) {
             this.logger.warn(`Gemini scan with ${model} returned an unexpected shape: ${JSON.stringify(result).slice(0, 500)}`);
-            return failure(502, 'The AI model gave an unreadable answer. Try again or pick another model.');
+            return failure(ScanOutcome.AI_FAILED, 'The AI model gave an unreadable answer. Try again or pick another model.');
         }
 
-        return { status: 200, body: { cards, model } };
+        return { outcome: ScanOutcome.SCANNED, cards, model };
     }
 }

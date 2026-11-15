@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { after, before, beforeEach, describe, test } from 'node:test';
 import { AiController } from '../../src/http/controllers/AiController.js';
+import { ScanOutcome } from '../../src/services/ai/ScanService.js';
 import { serveApp, signedInAs } from './httpHarness.js';
 
 // AiController over a fake ScanService: the scan route's order (enabled, rate limit, its own body
@@ -13,7 +14,7 @@ function createFakeScans() {
     const fake = {
         enabled: true,
         underLimit: true,
-        result: { status: 200, body: { cards: [], model: 'm1' } },
+        result: { outcome: ScanOutcome.SCANNED, cards: [], model: 'm1' },
         calls: [],
         isEnabled: () => fake.enabled,
         async getConfig() {
@@ -47,7 +48,7 @@ describe('AiController', () => {
     beforeEach(() => {
         scans.enabled = true;
         scans.underLimit = true;
-        scans.result = { status: 200, body: { cards: [], model: 'm1' } };
+        scans.result = { outcome: ScanOutcome.SCANNED, cards: [], model: 'm1' };
         scans.calls = [];
     });
 
@@ -62,14 +63,28 @@ describe('AiController', () => {
         assert.deepEqual(response.body, { enabled: true });
     });
 
-    test('a scan passes the parsed body to the service and answers its result', async () => {
-        scans.result = { status: 502, body: { message: 'unreadable' } };
-
+    test('a scan passes the parsed body to the service and answers the cards', async () => {
         const response = await harness.request('POST', '/api/ai/scan-cards', { body: { image: 'x', mode: 'm' } });
 
-        assert.equal(response.status, 502);
-        assert.deepEqual(response.body, { message: 'unreadable' });
+        assert.equal(response.status, 200);
+        assert.equal(response.text, '{"cards":[],"model":"m1"}');
         assert.deepEqual(scans.calls, [['tryStartScan', USER.email], ['scan', { image: 'x', mode: 'm' }]]);
+    });
+
+    test('a failed scan is answered with the status for its outcome and the message', async () => {
+        const cases = [
+            [ScanOutcome.INVALID_REQUEST, 400],
+            [ScanOutcome.AI_BUSY, 429],
+            [ScanOutcome.AI_FAILED, 502],
+        ];
+        for (const [outcome, status] of cases) {
+            scans.result = { outcome, message: 'nope' };
+
+            const response = await harness.request('POST', '/api/ai/scan-cards', { body: { image: 'x' } });
+
+            assert.equal(response.status, status, outcome);
+            assert.deepEqual(response.body, { message: 'nope' });
+        }
     });
 
     test('a scan while AI is off is a 503 that does not count against the limit', async () => {

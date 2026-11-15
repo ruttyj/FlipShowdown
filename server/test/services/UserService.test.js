@@ -49,6 +49,20 @@ describe('UserService', () => {
         assert.deepEqual(verifySessionToken(SECRET, token), { email: 'ann@example.com', full_name: 'Ann' });
     });
 
+    test('startDevSession normalises the raw form fields', () => {
+        const token = users.startDevSession('  Bob@Example.COM ', '  Bob  ');
+
+        assert.deepEqual(verifySessionToken(SECRET, token), { email: 'bob@example.com', full_name: 'Bob' });
+        assert.equal(temp.store.findUserByEmail('bob@example.com').full_name, 'Bob');
+    });
+
+    test('startDevSession refuses an invalid email and creates no user', () => {
+        for (const email of ['nope', '', undefined]) {
+            assert.equal(users.startDevSession(email, 'Ann'), null);
+        }
+        assert.equal(temp.store.findUserByEmail('nope'), null);
+    });
+
     test('toResponse derives the role from the admin list', () => {
         const ann = users.findOrCreate({ email: 'ann@example.com', full_name: 'Ann' });
         const boss = users.findOrCreate({ email: 'boss@example.com', full_name: 'Boss' });

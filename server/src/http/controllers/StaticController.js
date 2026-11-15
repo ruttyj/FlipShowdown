@@ -1,10 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import express from 'express';
+import { Controller } from './Controller.js';
 
 // The built client (STATIC_DIR): hashed assets cached for a year, everything else revalidated,
-// the third-party notices at /licenses and index.html for client-side routes. Not a routed
-// Controller: express.static and the SPA fallback go on the app itself, after every other route.
+// the third-party notices at /licenses and index.html for client-side routes. HttpProvider mounts
+// this router at the app root after every other route, since the SPA fallback answers any path.
 
 const ONE_YEAR_SECONDS = 365 * 24 * 60 * 60;
 const NOTICES_FILE = 'THIRD_PARTY_NOTICES.txt';
@@ -35,27 +36,28 @@ function isSpaRoute(req) {
 
 // --- Controller ----------------------------------------------------------
 
-export class StaticController {
+export class StaticController extends Controller {
     /** `staticDir` is the STATIC_DIR setting; `logger` gets the warning when it has no index.html. */
     constructor({ staticDir, logger }) {
+        super();
         this.staticDir = staticDir;
         this.logger = logger;
     }
 
-    /** Serves the client on the Express `app`, or logs a warning when STATIC_DIR has no index.html. */
-    routes(app) {
+    /** Serves the client from `router`, or logs a warning and adds nothing when STATIC_DIR has no index.html. */
+    routes(router) {
         const indexPath = path.join(this.staticDir, 'index.html');
         if (!fs.existsSync(indexPath)) {
             this.logger.warn(`STATIC_DIR ${this.staticDir} has no index.html; not serving the frontend`);
             return;
         }
 
-        app.use(express.static(this.staticDir, {
+        router.use(express.static(this.staticDir, {
             index: false,
             setHeaders: createStaticCacheHeaders(this.staticDir),
         }));
-        app.get('/licenses', (req, res, next) => this.sendLicenses(req, res, next));
-        app.use((req, res, next) => this.sendIndex(req, res, next));
+        router.get('/licenses', (req, res, next) => this.sendLicenses(req, res, next));
+        router.use((req, res, next) => this.sendIndex(req, res, next));
     }
 
     /** The client build's third-party notices (scripts/third-party-notices.mjs), as plain text. */

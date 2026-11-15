@@ -10,7 +10,10 @@ import { serveApp, signedInAs } from './httpHarness.js';
 
 const USER = { email: 'ann@example.com', full_name: 'Ann' };
 
-/** A fake UserService that records rename and startDevSession calls. */
+/**
+ * A fake UserService that records rename and startDevSession calls. startDevSession refuses (null)
+ * an email without an @, standing in for the real normalisation.
+ */
 function createFakeUsers() {
     const fake = {
         calls: [],
@@ -21,6 +24,10 @@ function createFakeUsers() {
         },
         startDevSession(email, fullName) {
             fake.calls.push(['startDevSession', email, fullName]);
+            const isEmail = typeof email === 'string' && email.includes('@');
+            if (!isEmail) {
+                return null;
+            }
             return 'token123';
         },
     };
@@ -117,7 +124,8 @@ describe('AuthController in dev mode', () => {
         assert.equal(response.status, 303);
         assert.equal(response.headers.get('location'), '/room/abc');
         assert.match(response.headers.get('set-cookie'), new RegExp(`^${SESSION_COOKIE}=token123;`));
-        assert.deepEqual(users.calls, [['startDevSession', 'ann@example.com', 'Ann']]);
+        // The service normalises the fields, so they arrive as the form sent them.
+        assert.deepEqual(users.calls, [['startDevSession', 'Ann@Example.com', ' Ann ']]);
     });
 
     test('an off-site from_url redirects home', async () => {
@@ -131,21 +139,24 @@ describe('AuthController in dev mode', () => {
 
     test('an invalid email shows the form again with a 400 and starts no session', async () => {
         const response = await harness.request('POST', '/login', {
-            body: 'email=nope&full_name=Ann',
+            body: 'email=nope&full_name=%20Ann%20',
             headers: { 'content-type': 'application/x-www-form-urlencoded' },
         });
 
         assert.equal(response.status, 400);
         assert.match(response.text, /Please enter a valid email address\./);
         assert.match(response.text, /value="nope"/);
-        assert.deepEqual(users.calls, []);
+        assert.match(response.text, /value="Ann"/);
+        assert.equal(response.headers.get('set-cookie'), null);
+        assert.deepEqual(users.calls, [['startDevSession', 'nope', ' Ann ']]);
     });
 
     test('a form post without a form body is an invalid email', async () => {
         const response = await harness.request('POST', '/login');
 
         assert.equal(response.status, 400);
-        assert.deepEqual(users.calls, []);
+        assert.equal(response.headers.get('set-cookie'), null);
+        assert.deepEqual(users.calls, [['startDevSession', undefined, undefined]]);
     });
 });
 
