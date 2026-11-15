@@ -1,7 +1,7 @@
 import { isHostPlayer } from '../domain/players.js';
 
-// Hold-to-vote topics (see managers/votes.js), by topic name, as the realtime hub takes them. Each
-// topic has:
+// Hold-to-vote topics (see managers/support/voteTracker.js), by topic name, as the realtime hub
+// takes them. Each topic has:
 //   validateOption(room, players, option) - whether `option` may be voted for right now; `room` is
 //     the GameRoom record or null, `players` its Players
 //   resolve(roomId, option) - carries out a passed vote; returns the RoomActionRunner result

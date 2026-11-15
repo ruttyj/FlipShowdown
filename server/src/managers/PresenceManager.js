@@ -1,6 +1,6 @@
 import { SERVER_MESSAGE } from '../../../shared/realtimeProtocol.js';
-import { countPeopleOnline, onlineEmailsIn } from './onlineSockets.js';
-import { summariseRoomStats } from './roomStats.js';
+import { countPeopleOnline, onlineEmailsIn } from './support/onlineSockets.js';
+import { summariseRoomStats } from './support/roomStats.js';
 
 // Who is online in each room, and the `presence` message that tells the room. A player is online
 // while one of their live sockets explicitly subscribes to the room (onlineSockets.js); an admin

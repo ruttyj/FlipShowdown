@@ -1,9 +1,10 @@
 import { SERVER_MESSAGE } from '../../../shared/realtimeProtocol.js';
-import { createEntryStatusTracker, isEntryState } from './entryStatus.js';
+import { createEntryStatusTracker, isEntryState } from './support/entryStatusTracker.js';
 
 // Who in each room is entering their cards (X40): the entry-status messages, the entry status
-// tracker (entryStatus.js) and the `entry-status` state each room hears. Entries the room's latest
-// state rules out are dropped after every publish, and expired ones on the periodic check.
+// tracker (support/entryStatusTracker.js) and the `entry-status` state each room hears. Entries
+// the room's latest state rules out are dropped after every publish, and expired ones on the
+// periodic check.
 
 /**
  * Whether this player can be entering cards for `round`: the round is open, and they haven't

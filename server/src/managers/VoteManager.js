@@ -1,11 +1,11 @@
 import { SERVER_MESSAGE } from '../../../shared/realtimeProtocol.js';
 import { isHostPlayer } from '../domain/players.js';
 import { hostOfflineSinceOf, onlinePlayerIdsOf } from './PresenceManager.js';
-import { createVoteTracker } from './votes.js';
+import { createVoteTracker } from './support/voteTracker.js';
 
-// Hold-to-vote in the rooms (docs/backend-contract.md): the vote tracker (votes.js) per room, fed
-// with who is online and who is host, the vote-hold / vote-release messages, the `vote` state each
-// room hears, and running a passed vote's action.
+// Hold-to-vote in the rooms (docs/backend-contract.md): the vote tracker (support/voteTracker.js)
+// per room, fed with who is online and who is host, the vote-hold / vote-release messages, the
+// `vote` state each room hears, and running a passed vote's action.
 //
 // A passed vote's action re-enters the hub synchronously: its publishing, membership and host
 // changes refresh presence and votes before the action returns.
@@ -38,7 +38,7 @@ export class VoteManager {
      * `voteTopics` is the topic registry, topic -> { validateOption, resolve, hostDecides } (see
      * actions/VoteTopics.js). `holdMs` is how long a vote must be held, `hostGraceMs` how long the
      * host must be offline before a vote can pass without them; left undefined, they take the
-     * vote tracker's defaults (VOTE_HOLD_MS, HOST_OFFLINE_GRACE_MS in votes.js).
+     * vote tracker's defaults (VOTE_HOLD_MS, HOST_OFFLINE_GRACE_MS in support/voteTracker.js).
      */
     constructor({
         rooms,

@@ -1,6 +1,6 @@
-import { ConnectionManager } from './ConnectionManager.js';
+import { ConnectionManager } from '../ConnectionManager.js';
 import { countPeopleOnline } from './onlineSockets.js';
-import { SubscriptionManager } from './SubscriptionManager.js';
+import { SubscriptionManager } from '../SubscriptionManager.js';
 
 // The desktop launcher's summary of who is playing (X66), built from the presence cache
 // (PresenceManager). Only rooms someone subscribes to are in that cache, so idle rooms are never read.

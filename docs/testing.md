@@ -266,7 +266,7 @@ code changes on every run.
   - `RoomUnitOfWork.loadRoom` → its `readRoom`, which `buildRoomActionRunner` wires to
     `store.getRecord` (`staleRooms.test.js` makes it throw);
   - `EntityService.create` → `store.createRecords` (`coverageGaps.test.js` makes it fail);
-  - `players.listByRoom` in `managers/storeViews.js` → `store.findRecords` (`entryStatus.test.js`
+  - `players.listByRoom` in `realtime/storeViews.js` → `store.findRecords` (`entryStatus.test.js`
     counts the calls; that check also passes with 0 lookups, so it proves little).
 
   The hub is the same: `rooms.test.js`, `coverageGaps.test.js` and `RoomActionRunner.test.js`
@@ -280,7 +280,7 @@ code changes on every run.
     bans production imports of it. `ACTIONS[name].run(tx)` and `createRoom(tx)` only work on a
     `tx` that `runRoomAction` created, since that is how they find the store;
   - `realtime/hub.js` (`createRealtimeHub`, over a store), `database/eventLog.js`
-    (`createEventLog`), `managers/roomStats.js` (`buildRoomStats`) and
+    (`createEventLog`), `managers/support/roomStats.js` (`buildRoomStats`) and
     `managers/LauncherReporter.js` (`createLauncherReporter`);
   - `services/ai/gemini.js` (`createGeminiClient`) and `services/ai/aiModels.js`
     (`createModelCatalog`); `createAuthenticator` is not one, as `AuthProvider` uses it too;

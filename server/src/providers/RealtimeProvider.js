@@ -1,4 +1,4 @@
-import { createStoreViews } from '../managers/storeViews.js';
+import { createStoreViews } from '../realtime/storeViews.js';
 import { RealtimeHub } from '../realtime/RealtimeHub.js';
 import { BaseProvider } from './BaseProvider.js';
 

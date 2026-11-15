@@ -6,7 +6,7 @@
 // An entry belongs to the player, not the socket, and ends by time rather than on close,
 // because opening the camera kills the socket at the moment scanning starts (X26).
 
-import { ENTRY_STATUS_TTL_MS } from '../../../shared/realtimeProtocol.js';
+import { ENTRY_STATUS_TTL_MS } from '../../../../shared/realtimeProtocol.js';
 
 // A member flipping between states would otherwise cost a database lookup and a room broadcast per
 // message. A person can beat this with Scan, Back, Manual, so a change inside the window isn't lost:

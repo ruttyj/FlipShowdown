@@ -100,7 +100,7 @@ New decisions get the next X number (the last used is X89).
 
 - **A vote can only pass once the host has been offline for 2 minutes** (X27), so a host who
   switched app or lost signal for a moment keeps the role. The server enforces it from the
-  host's `last_seen` (`HOST_OFFLINE_GRACE_MS` in `server/src/managers/votes.js`, overridable with
+  host's `last_seen` (`HOST_OFFLINE_GRACE_MS` in `server/src/managers/support/voteTracker.js`, overridable with
   `HOST_OFFLINE_GRACE_SECONDS`) and sends the time left as `unlocks_in_ms`. A host never seen
   online doesn't block the vote.
 - **Other players see nothing of the vote while the host is online** (X27). When the host goes
@@ -634,7 +634,7 @@ New decisions get the next X number (the last used is X89).
     `LIVE_WINDOW_MS`) explicitly subscribed to a room they're a player in, so admin "*" sockets, hidden
     tabs and people on the web app's home screen don't count, and two tabs or devices count once. A room
     is in play when it isn't `closed` and at least one of its players is online. Only room codes reach
-    the launcher, never room ids or emails (`server/src/managers/roomStats.js`; the online rule, shared
+    the launcher, never room ids or emails (`server/src/managers/support/roomStats.js`; the online rule, shared
     with presence, is `onlineSockets.js`).
   - *Transport*: the server pushes `{ type: 'room-stats', stats }` over Electron's utility-process
     parent port (`shared/launcherMessages.js`; desktop main keeps a checked copy, as app.asar has no

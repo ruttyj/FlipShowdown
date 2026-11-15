@@ -196,13 +196,15 @@ and parts the providers build (the Gemini client, model catalog and scan rate li
 calls the store in just three places, each kept because a test replaces or counts that call:
 `RoomUnitOfWork.loadRoom` (the `readRoom` that `buildRoomActionRunner` wires to
 `store.getRecord`), `EntityService.create` (`store.createRecords`) and `players.listByRoom` in
-`managers/storeViews.js` (`store.findRecords`). So only `EntityService`, `buildRoomActionRunner`
+`realtime/storeViews.js` (`store.findRecords`). So only `EntityService`, `buildRoomActionRunner`
 and `createStoreViews` are given the store. [docs/testing.md](docs/testing.md#gotchas) names the
 tests.
 
 Parts are classes, with one deliberate exception: the hold-to-vote and entry status trackers
-(`managers/votes.js`, `managers/entryStatus.js`) stay pure factory modules, wrapped by
-`VoteManager` and `EntryStatusManager`.
+(`managers/support/voteTracker.js`, `managers/support/entryStatusTracker.js`) stay pure factory
+modules, wrapped by `VoteManager` and `EntryStatusManager`. File names follow what a file exports:
+PascalCase for a class, camelCase for plain functions. In `managers/`, the function modules sit in
+`support/`, so the folder's top level holds only the managers.
 
 Some exports are only there for the tests, which import them by path; docs/testing.md lists them.
 The largest is `gameActions/`, the old game-action functions, which lint stops production code

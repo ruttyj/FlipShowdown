@@ -1,5 +1,5 @@
 import { Clock } from '../domain/clock.js';
-import { createStoreViews } from '../managers/storeViews.js';
+import { createStoreViews } from './storeViews.js';
 import { RealtimeHub } from './RealtimeHub.js';
 
 // Test-facing adapter: realtime.test, voteHub.test and hubStatsEvents.test build a hub standalone

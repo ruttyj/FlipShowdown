@@ -39,7 +39,7 @@ export class RealtimeHub {
      *     401 and never reach ws
      *   eventLog - the EventRepository events are stored in and replayed from
      *   rooms, players - the GameRoom and Player reads and writes the managers use (see
-     *     managers/storeViews.js for their shape)
+     *     realtime/storeViews.js for their shape)
      *   isAdmin(identity) - whether the identity may subscribe to "*"
      *   logger - console-like
      *   clock - the Clock every manager reads (presence liveness, vote countdowns, entry windows)
@@ -48,7 +48,7 @@ export class RealtimeHub {
      *   voteHoldMs - how long a vote must be held
      *   hostOfflineGraceMs - how long the host must be offline before a vote can pass without them
      *   heartbeatIntervalMs, livenessCheckIntervalMs - the ConnectionManager's timers
-     * The numbers may be undefined: the defaults live in the managers (votes.js,
+     * The numbers may be undefined: the defaults live in the managers (support/voteTracker.js,
      * ConnectionManager.js), and the hub passes undefined through to them.
      *
      * The instance's methods can be replaced (tests do): the server reaches publishAll,

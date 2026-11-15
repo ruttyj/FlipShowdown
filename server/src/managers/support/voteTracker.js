@@ -1,4 +1,4 @@
-import { VOTE_HOLD_MS } from '../../../shared/realtimeProtocol.js';
+import { VOTE_HOLD_MS } from '../../../../shared/realtimeProtocol.js';
 
 // Hold-to-vote: a server-owned unanimous vote per room and topic. Every
 // eligible (online) player holds the same option, and after `holdMs` of that

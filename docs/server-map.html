@@ -112,7 +112,7 @@ td .none { color: var(--muted); }
 
 <section>
   <h2>1 · Layers</h2>
-  <p>Folders are grouped by role into six layers. A file may import its own layer and the ones below it, never above; <code>eslint.config.js</code> checks this with <code>no-restricted-imports</code>. Parts are classes that get their dependencies through the constructor; the providers build them and their parts (the Gemini client, model catalog and rate limit <code>ScanService</code> uses, the <code>EntityGateway</code> <code>EntityService</code> uses) and only they call <code>app.get()</code>. The one deliberate exception is the hold-to-vote and entry status trackers (<code>managers/votes.js</code>, <code>managers/entryStatus.js</code>), pure factory modules that <code>VoteManager</code> and <code>EntryStatusManager</code> wrap.</p>
+  <p>Folders are grouped by role into six layers. A file may import its own layer and the ones below it, never above; <code>eslint.config.js</code> checks this with <code>no-restricted-imports</code>. Parts are classes that get their dependencies through the constructor; the providers build them and their parts (the Gemini client, model catalog and rate limit <code>ScanService</code> uses, the <code>EntityGateway</code> <code>EntityService</code> uses) and only they call <code>app.get()</code>. The one deliberate exception is the hold-to-vote and entry status trackers (<code>managers/support/voteTracker.js</code>, <code>managers/support/entryStatusTracker.js</code>), pure factory modules that <code>VoteManager</code> and <code>EntryStatusManager</code> wrap.</p>
   <figure class="d1">
     <div class="scroll">
     <svg viewBox="0 0 1200 748" role="img" aria-label="Six layers from top to bottom: compose (app.js and the providers), entry (http and realtime), handlers (actions), logic (managers and services), data (repositories and database) and base (domain, lib, config). Imports only point down. Phones talk to the entry layer, services call the Gemini API and the database opens flip7.db.">
@@ -577,7 +577,7 @@ td .none { color: var(--muted); }
       <text x="767" y="243" class="tt">EventPublisher</text><text x="767" y="262" class="ts">event log · fan-out · replay</text>
 
       <rect x="20" y="310" width="225" height="60" rx="6" class="box svc"/>
-      <text x="32" y="333" class="tt">VoteManager</text><text x="32" y="352" class="ts">hold-to-vote (votes.js, VoteTopics)</text>
+      <text x="32" y="333" class="tt">VoteManager</text><text x="32" y="352" class="ts">hold-to-vote (voteTracker.js, VoteTopics)</text>
       <rect x="265" y="310" width="225" height="60" rx="6" class="box svc"/>
       <text x="277" y="333" class="tt">EntryStatusManager</text><text x="277" y="352" class="ts">who is entering cards</text>
       <rect x="510" y="310" width="225" height="60" rx="6" class="box svc"/>
@@ -628,7 +628,7 @@ td .none { color: var(--muted); }
       <li><code>gameActions/</code> the old game-action functions, <code>roomTx</code> (with <code>createRoomActionRunner</code>), <code>rooms</code>, <code>rounds</code>, <code>voteTopics</code></li>
       <li><code>realtime/hub.js</code> <code>createRealtimeHub</code></li>
       <li><code>database/eventLog.js</code> <code>createEventLog</code></li>
-      <li><code>managers/roomStats.js</code> <code>buildRoomStats</code>, <code>managers/LauncherReporter.js</code> <code>createLauncherReporter</code></li>
+      <li><code>managers/support/roomStats.js</code> <code>buildRoomStats</code>, <code>managers/LauncherReporter.js</code> <code>createLauncherReporter</code></li>
       <li><code>services/ai/gemini.js</code> <code>createGeminiClient</code>, <code>services/ai/aiModels.js</code> <code>createModelCatalog</code></li></ul></div>
   </div>
 </section>
