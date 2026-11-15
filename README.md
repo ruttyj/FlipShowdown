@@ -156,12 +156,7 @@ delete it in AI Studio and create a new one.
   client). Rounds advance on the server as soon as every player has submitted, so nothing
   depends on the host's phone being awake. Generic writes to GameRoom, Player and
   RoundScore are blocked by default (`LOCK_GAME_ENTITIES`).
-- **The server is put together by providers.** `server/src/app.js` creates an `App` container
-  (`server/src/providers/App.js`) and adds one provider per area: config, database, auth, game
-  actions, AI, HTTP, realtime, launcher stats and the stale-room sweep. Each provider registers
-  its parts by name (built on first use), then all of them boot, and on shutdown they stop in
-  reverse order. Folders under `server/src` are layers whose imports only point down, which
-  `eslint.config.js` checks.
+- **The server is put together by providers** (see [Server layout](#server-layout) below).
 - **Realtime is room-scoped.** A client only receives events for rooms it is a member of.
   The server tracks who is online (the offline badges next to players) and keeps a durable
   event log in SQLite, so after a reconnect or a server restart the client replays what it
@@ -178,6 +173,26 @@ delete it in AI Studio and create a new one.
   Where the browser doesn't offer one (plain HTTP), the screen locks as usual.
 - **Chat can be muted** per device with the button above the sound toggle in a game room.
 - **Room links** are `/room/CODE` (e.g. `/room/3Z7R7L`). Old `/GameRoom?code=CODE` links redirect there.
+
+## Server layout
+
+`server/src` is grouped by role. Each row is a layer, and a folder may only import folders in its
+own row or below; `eslint.config.js` enforces it. [docs/server-map.html](docs/server-map.html) draws
+the same structure, with a game action's path and who reads and writes each table.
+
+| Layer | Folders | What lives there |
+| --- | --- | --- |
+| Compose | `app.js`, `index.js`, `providers/` | `createServer` builds an `App` container (`providers/App.js`) and adds one provider per area: config, database, auth, game, AI, HTTP, realtime, launcher stats and the sweep. Providers register their parts by name (built on first use), then boot, and stop in reverse order. Only providers call `app.get()`; everything else gets its dependencies through its constructor |
+| Entry | `http/`, `realtime/` | Thin controllers on a `Controller` base plus shared middleware (`requireUser`, JSON body, error mapping). `RealtimeHub` builds the realtime managers and `RealtimeServer`, which hands each client message to the handler registered for its `type` |
+| Handlers | `actions/` | One class per game action, looked up by name in the `ActionRegistry`. `RoomActionRunner` runs one in a transaction on a `RoomUnitOfWork` (the room, its children and the queued events), checks the caller with `AccessPolicy`, and publishes only after the commit |
+| Logic | `services/`, `managers/` | Services are stateless and hold the game rules (rooms, players, scoring, rounds, totals) and the user, entity and AI scan logic. Managers hold the realtime state: connections, subscriptions, presence, votes, entry status, the event publisher, the room sweep and the launcher reporter |
+| Data | `repositories/`, `database/` | One repository per table on a shared `TableRepository`, plus `EntityGateway` for any entity name. `Database` owns the connection, transactions, migrations and backups. See [docs/database.md](docs/database.md) |
+| Base | `domain/`, `lib/`, `config/` | Errors, entity names, player helpers and the `Clock` (`domain/` imports nothing else from `server/src`), small helpers (email, query parsing, rate limiting) and configuration |
+
+Some files are only there for the tests: `gameActions/` (the old game-action functions, which lint
+stops production code importing), `realtime/hub.js` and `database/eventLog.js`. `database/db.js`
+opens the store, whose record-shaped methods (`findRecords`, `createRecords`, ...) are the tests'
+API; production code uses its repositories, and only `providers/` may import it.
 
 ## Development
 

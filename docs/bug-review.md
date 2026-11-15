@@ -48,7 +48,7 @@ specific situations · 🟡 minor or cosmetic.
 **Status: fixed** (room refetch on `ready`, durable event log replay).
 [GameRoom.jsx:123-166](../src/pages/GameRoom.jsx#L123-L166),
 [GameRoom.jsx:169](../src/pages/GameRoom.jsx#L169),
-[server/src/realtime/hub.js:46-86](../server/src/realtime/hub.js#L46-L86)
+[server/src/managers/EventPublisher.js](../server/src/managers/EventPublisher.js) (`classifyHello`, `replay`)
 
 GameRoom fetches the room, players and scores over REST first. Only **after** `room` is in
 state does the subscription effect run, which opens the WebSocket. A brand-new socket sends
@@ -118,7 +118,7 @@ than that.
 
 **Status: fixed** (auth check and signed-out banner).
 [realtime.js:178-204](../src/api/realtime.js#L178-L204),
-[server/src/realtime/hub.js:160-163](../server/src/realtime/hub.js#L160-L163)
+[server/src/realtime/RealtimeServer.js](../server/src/realtime/RealtimeServer.js) (the upgrade's 401)
 
 If the session cookie stops being valid, the WS upgrade gets a 401. Causes include a
 server restart without `SESSION_SECRET` (6.1), 30-day expiry, or an expired Cloudflare
@@ -152,7 +152,7 @@ Applying events directly also removes the N×(1–2) REST requests per round cha
 ### 2.7 🟡 Every client receives every room's events
 
 **Status: fixed** (room-scoped realtime).
-[server/src/realtime/hub.js:187-207](../server/src/realtime/hub.js#L187-L207)
+[server/src/managers/EventPublisher.js](../server/src/managers/EventPublisher.js) (`publishAll`)
 
 All events (including private `ChatMessage`s for other rooms) go to every connected socket,
 and all rooms share the 1000-event replay buffer. With a few busy rooms, the replay window
@@ -511,7 +511,7 @@ least `Promise.all` plus bulk update/delete endpoints.
 ### 6.1 🔴 `npm run dev` logs everyone out on every server restart
 
 **Status: fixed** (session secret saved in `DATA_DIR/session-secret`).
-[server/src/config/config.js:474-478](../server/src/config/config.js#L474-L478),
+[server/src/config/config.js](../server/src/config/config.js) (`session-secret`),
 [scripts/dev.mjs:67](../scripts/dev.mjs#L67)
 
 `npm run dev` doesn't load `.env`, so `SESSION_SECRET` is random per boot. nodemon restarts
@@ -525,7 +525,7 @@ secret once into `server/data/.session-secret` and reuse it.
 ### 6.2 🟠 Any restart forces every client to reload
 
 **Status: fixed** (durable event log replay).
-[server/src/realtime/hub.js:124-128](../server/src/realtime/hub.js#L124-L128)
+[server/src/repositories/EventRepository.js](../server/src/repositories/EventRepository.js) (the stored epoch and log)
 
 The epoch and replay buffer live only in memory, so even a quick container restart or
 redeploy makes every client resync, which reloads the page (2.3). Two ways to fix it:

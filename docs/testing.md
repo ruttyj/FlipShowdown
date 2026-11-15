@@ -257,11 +257,30 @@ code changes on every run.
 - The server holds an `entry-status` within 1 s of the same player's last one, on the injected
   `realtimeNow` clock, so a test sending two in a row has to advance `clock.time` between them. The
   held state is then applied by a real timer, which ignores that clock, so a test of it really waits.
-- Some server tests wrap `store` facade methods on a running server: `entryStatus.test.js` counts
-  `store.findRecords` calls and `staleRooms.test.js` makes `store.getRecord` throw. The realtime
-  managers' GameRoom and Player access (`managers/storeViews.js`) and the action runner's room load
-  go through the facade for that reason. Moving them to `store.repositories` keeps those tests green
-  but makes them check nothing.
+- Some server tests replace or count methods on the running server's objects, so production code
+  must keep calling those methods through the object at call time (not a copy taken at build time).
+  Production code otherwise uses the repositories; the store facade (`database/db.js`) call sites
+  left are exactly the ones a test pins:
+  - `RoomUnitOfWork.loadRoom` → `store.getRecord` (`staleRooms.test.js` makes it throw);
+  - `EntityService.create` → `store.createRecords` (`coverageGaps.test.js` makes it fail);
+  - `players.listByRoom` in `managers/storeViews.js` → `store.findRecords` (`entryStatus.test.js`
+    counts the calls; that check also passes with 0 lookups, so it proves little);
+  - `buildRoomStats` in `managers/roomStats.js`, an adapter only `roomStats.test.js` uses.
+
+  The hub is the same: `rooms.test.js`, `coverageGaps.test.js` and `RoomActionRunner.test.js`
+  replace `hub.publishAll` and `hub.roomMembershipChanged`, which is why the runner gets the hub
+  through `getHub()` and `EntityService` holds the hub object. Moving one of these call sites to a
+  repository, or caching a hub method, keeps its test green but makes it check nothing.
+- The test-facing adapters keep the old function API that tests import by path: `gameActions/`
+  (game actions and `roomTx`; lint bans production imports of it), `realtime/hub.js`
+  (`createRealtimeHub`), `database/eventLog.js` (`createEventLog`) and `database/db.js` (`openStore`,
+  `openDatabase`; lint lets only `providers/` import it). Build new tests on the classes when you can.
+- **Case-only renames clash in worktrees on Windows.** The file system is case-insensitive, so
+  `server/src/app.js` and an `App.js` beside it are one file (that is why the container is
+  `providers/App.js`), and a checkout or rebase across the rename of `managers/launcherReporter.js`
+  to `managers/LauncherReporter.js` can leave the wrong name behind in an agent's or tool's worktree.
+  Check `git status` after switching across those commits, and never add a file that differs from
+  another in the same folder only by case.
 - The realtime managers keep their dependencies and state in private fields, so a manager unit test
   (`server/test/managers/`) changes a dependency by changing the fake it passed in (the rooms store,
   the vote topics), not the manager.
