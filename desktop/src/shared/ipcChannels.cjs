@@ -14,6 +14,9 @@ const INVOKE_CHANNELS = Object.freeze({
     validateGeminiKey: 'launcher:validate-gemini-key',
     resetData: 'launcher:reset-data',
     checkForUpdate: 'launcher:check-for-update',
+    getUpdateStatus: 'launcher:get-update-status',
+    downloadUpdate: 'launcher:download-update',
+    installUpdate: 'launcher:install-update',
     openExternal: 'launcher:open-external',
     openGame: 'launcher:open-game',
     openLicense: 'launcher:open-license',
@@ -27,6 +30,7 @@ const EVENT_CHANNELS = Object.freeze({
     urlChanged: 'launcher:url-changed',
     powerStatus: 'launcher:power-status',
     roomStats: 'launcher:room-stats',
+    updateStatus: 'launcher:update-status',
 });
 
 module.exports = { INVOKE_CHANNELS, EVENT_CHANNELS };

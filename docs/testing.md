@@ -133,12 +133,15 @@ API, and each `binarySha256` is the hash of the binary inside it.
   refuses foreign ciphertext, with switches for no keyring, Linux `basic_text` and a method that
   throws). The file-mode test is skipped on Windows, which has no POSIX modes.
   `main.js` is untested glue and is excluded from coverage. `ipc` also takes a fake `windowVisibility`
-  (`show()` fires the shown listeners). The server's side of the launcher link takes a fake parent port:
+  (`show()` fires the shown listeners) and a fake `appUpdater`. `appUpdater` itself takes a
+  `FakeUpdater` standing in for electron-updater's `autoUpdater`, and `inAppInstallSupport` takes the
+  platform and env, so the macOS path is tested on any OS. The server's side of the launcher link takes a fake parent port:
   `startTestServer({ launcherPort })` (a `createMessageLog` with `postMessage`) and
   `launcherReportDelayMs`; `launcherReporter.test.js` uses `node:test`'s `mock.timers`, which prints an
   ExperimentalWarning on Node 20.
 - **UI.** `desktop/test/renderer/fakeLauncher.jsx` builds a fake `window.launcher` (every method a
-  `vi.fn`) and pushes events with `emitState`, `emitUrlChanged` and `emitPowerStatus`; its header
+  `vi.fn`) and pushes events with `emitState`, `emitUrlChanged`, `emitPowerStatus` and
+  `emitUpdateStatus`. By default it can't install updates in-app (like running from source); its header
   shows the usage. Like the real bridge, its `start()` and `retry()` resolve only after the session
   settles, so tests can see the pending state. These tests run in the root Vitest suite with the app's `tests/ui/setup.js`.
 - **Looking at it in a browser.** The page throws without `window.launcher`. A throwaway

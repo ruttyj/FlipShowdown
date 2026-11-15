@@ -121,6 +121,38 @@ function fakeKeepAwake() {
     };
 }
 
+/** The in-app updater (appUpdater.js): the test pushes statuses with emitStatus. */
+function fakeAppUpdater() {
+    const listeners = new Set();
+    return {
+        calls: [],
+        listeners,
+        status: { canInstall: true, unsupportedReason: null, phase: 'idle', percent: null, error: null },
+        installResult: { ok: true },
+        getStatus() {
+            return this.status;
+        },
+        async download() {
+            this.calls.push('download');
+            return { ok: true };
+        },
+        install() {
+            this.calls.push('install');
+            return this.installResult;
+        },
+        onStatus(listener) {
+            listeners.add(listener);
+            return () => listeners.delete(listener);
+        },
+        emitStatus(status) {
+            this.status = status;
+            for (const listener of listeners) {
+                listener(status);
+            }
+        },
+    };
+}
+
 /** The launcher window: visible until the test hides it; show() fires the shown listeners. */
 function fakeWindowVisibility() {
     const listeners = new Set();
@@ -165,6 +197,7 @@ function setup(overrides = {}) {
         keyChecks: [],
         appVersion: '1.2.3',
         windowVisibility: fakeWindowVisibility(),
+        appUpdater: fakeAppUpdater(),
         ...overrides,
     };
     const unregister = registerIpcHandlers({
@@ -178,6 +211,7 @@ function setup(overrides = {}) {
             return 'valid';
         },
         checkForUpdate: async () => ({ updateAvailable: true, latestVersion: '1.3.0', url: 'https://github.com/x/y/releases/tag/v1.3.0' }),
+        appUpdater: deps.appUpdater,
         openExternal: async (url) => {
             deps.opened.push(url);
         },
@@ -217,7 +251,7 @@ test('registers one handler per invoke channel', () => {
 });
 
 test('unregister removes the handlers and stops forwarding events', () => {
-    const { ipcMain, session, keepAwake, windowVisibility, sent, unregister } = setup();
+    const { ipcMain, session, keepAwake, windowVisibility, appUpdater, sent, unregister } = setup();
 
     unregister();
     session.publish({ status: 'hosting' });
@@ -225,11 +259,13 @@ test('unregister removes the handlers and stops forwarding events', () => {
     session.emit('room-stats', ROOM_STATS);
     keepAwake.emitChange(true);
     windowVisibility.show();
+    appUpdater.emitStatus({ ...appUpdater.status, phase: 'downloading', percent: 5 });
 
     assert.equal(ipcMain.handlers.size, 0);
     assert.deepEqual(sent, []);
     assert.equal(keepAwake.listeners.size, 0);
     assert.equal(windowVisibility.listeners.size, 0);
+    assert.equal(appUpdater.listeners.size, 0);
 });
 
 test('every handler rejects a sender that is not the launcher window', async () => {
@@ -428,6 +464,33 @@ test('checkForUpdate returns the update check result', async () => {
     assert.equal(result.latestVersion, '1.3.0');
 });
 
+test('getUpdateStatus returns the in-app updater status', async () => {
+    const { invoke, appUpdater } = setup();
+
+    assert.deepEqual(await invoke('getUpdateStatus'), appUpdater.status);
+});
+
+test('downloadUpdate and installUpdate go to the in-app updater', async () => {
+    const { invoke, appUpdater } = setup();
+    appUpdater.installResult = { ok: false, error: 'Stop hosting before restarting to update.' };
+
+    const downloaded = await invoke('downloadUpdate');
+    const installed = await invoke('installUpdate');
+
+    assert.deepEqual(downloaded, { ok: true });
+    assert.deepEqual(installed, { ok: false, error: 'Stop hosting before restarting to update.' });
+    assert.deepEqual(appUpdater.calls, ['download', 'install']);
+});
+
+test('in-app updater statuses are pushed to the renderer', () => {
+    const { appUpdater, sent } = setup();
+    const downloading = { ...appUpdater.status, phase: 'downloading', percent: 30 };
+
+    appUpdater.emitStatus(downloading);
+
+    assert.deepEqual(sent, [{ channel: EVENT_CHANNELS.updateStatus, payload: downloading }]);
+});
+
 test('getAppInfo returns the app version', async () => {
     const { invoke } = setup();
 
@@ -607,6 +670,7 @@ test('openGame uses the real clock and timers by default', async () => {
         licensePaths: LICENSE_PATHS,
         checkGeminiKey: async () => 'valid',
         checkForUpdate: async () => ({ updateAvailable: false, latestVersion: null, url: null }),
+        appUpdater: fakeAppUpdater(),
         openExternal: async (url) => {
             opened.push(url);
         },

@@ -10,9 +10,9 @@ directories:
   # Not the default "build": that folder holds the staged server, not installer resources.
   buildResources: build-resources
 
-# The launcher itself (main, preload, renderer) goes into app.asar. It has no production
-# dependencies, so nothing native lives in the asar: the only native module (better-sqlite3)
-# ships with the staged server in extraResources, already rebuilt for Electron.
+# The launcher itself (main, preload, renderer) goes into app.asar, with its one production
+# dependency, electron-updater (plain JS, X90). Nothing native lives in the asar: the only native
+# module (better-sqlite3) ships with the staged server in extraResources, already rebuilt for Electron.
 # dist-renderer is built by root `npm run build:launcher`; scripts/dist.mjs fails if it's missing.
 files:
   - package.json

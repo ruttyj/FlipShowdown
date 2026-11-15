@@ -1,7 +1,8 @@
 // A fake window.launcher for the launcher UI tests. Every method is a vi.fn spy with a sensible
-// default, and the push events (state, URL changed, power, room stats) are fired by the test with
-// emitState, emitUrlChanged, emitPowerStatus and emitRoomStats. Override one method with
-// `launcher.start.mockImplementation`.
+// default, and the push events (state, URL changed, power, room stats, update status) are fired by
+// the test with emitState, emitUrlChanged, emitPowerStatus, emitRoomStats and emitUpdateStatus.
+// Override one method with `launcher.start.mockImplementation`. By default the build can't install
+// updates in-app (as when running from source); pass `updateStatus` to change that.
 //
 // Usage:
 //   const fake = createFakeLauncher({ snapshot: { status: 'hosting', url: TUNNEL_URL } });
@@ -16,6 +17,7 @@ import { vi } from 'vitest';
 /** @typedef {import('../../src/shared/launcherBridge').PowerStatus} PowerStatus */
 /** @typedef {import('../../src/shared/launcherBridge').UrlChange} UrlChange */
 /** @typedef {import('../../src/shared/launcherBridge').RoomStats} RoomStats */
+/** @typedef {import('../../src/shared/launcherBridge').UpdateStatus} UpdateStatus */
 
 export const TUNNEL_URL = 'https://brave-otter-lamp.trycloudflare.com';
 export const NEW_TUNNEL_URL = 'https://quiet-river-moon.trycloudflare.com';
@@ -45,16 +47,34 @@ export function makeSnapshot(overrides = {}) {
 }
 
 /**
+ * @param {Partial<UpdateStatus>} [overrides]
+ * @returns {UpdateStatus}
+ */
+export function makeUpdateStatus(overrides = {}) {
+    return {
+        canInstall: false,
+        unsupportedReason: 'running-from-source',
+        phase: 'idle',
+        percent: null,
+        error: null,
+        ...overrides,
+    };
+}
+
+/**
  * @param {{ snapshot?: Partial<HostingSnapshot>, settings?: Partial<Settings>,
- *   power?: PowerStatus, version?: string, roomStats?: RoomStats | null }} [options]
+ *   power?: PowerStatus, version?: string, roomStats?: RoomStats | null,
+ *   updateStatus?: Partial<UpdateStatus> }} [options]
  */
 export function createFakeLauncher(options = {}) {
     let snapshot = makeSnapshot(options.snapshot);
+    let updateStatus = makeUpdateStatus(options.updateStatus);
     const listeners = {
         state: new Set(),
         urlChanged: new Set(),
         power: new Set(),
         roomStats: new Set(),
+        updateStatus: new Set(),
     };
 
     function subscribe(set, callback) {
@@ -100,6 +120,10 @@ export function createFakeLauncher(options = {}) {
         validateGeminiKey: vi.fn(async () => 'valid'),
         resetData: vi.fn(async () => ({ ok: true })),
         checkForUpdate: vi.fn(async () => ({ updateAvailable: false, latestVersion: null, url: null })),
+        getUpdateStatus: vi.fn(async () => updateStatus),
+        onUpdateStatus: vi.fn((callback) => subscribe(listeners.updateStatus, callback)),
+        downloadUpdate: vi.fn(async () => ({ ok: true })),
+        installUpdate: vi.fn(async () => ({ ok: true })),
         openExternal: vi.fn(async () => {}),
         openGame: vi.fn(async () => ({ ok: true })),
         openLicense: vi.fn(async () => options.openLicenseResult ?? { ok: true }),
@@ -149,9 +173,23 @@ export function createFakeLauncher(options = {}) {
             });
         },
 
+        /** Pushes a new in-app updater status, as the main process does while downloading. */
+        emitUpdateStatus(/** @type {Partial<UpdateStatus>} */ changes) {
+            updateStatus = makeUpdateStatus({ ...updateStatus, ...changes });
+            act(() => {
+                for (const callback of listeners.updateStatus) {
+                    callback(updateStatus);
+                }
+            });
+        },
+
         /** How many subscriptions are still open, to check they are all removed on unmount. */
         listenerCount() {
-            return listeners.state.size + listeners.urlChanged.size + listeners.power.size + listeners.roomStats.size;
+            let count = 0;
+            for (const set of Object.values(listeners)) {
+                count += set.size;
+            }
+            return count;
         },
     };
 }

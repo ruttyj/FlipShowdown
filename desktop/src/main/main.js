@@ -18,6 +18,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createAppUpdater, inAppInstallSupport } from './appUpdater.js';
 import { resolveAppVersion } from './appVersion.js';
 import { resolveCloudflaredPath, resolveLicensePaths, resolveServerPaths } from './binaries.js';
 import { checkGeminiKey } from './geminiKey.js';
@@ -272,8 +273,30 @@ function readRootPackageJson() {
     }
 }
 
-function startLauncher() {
+/**
+ * The in-app updater (X90). electron-updater is loaded only on builds that can install, so
+ * macOS and running from source never touch it.
+ * @param {{ getState(): { status: string } }} session
+ */
+async function createUpdater(session) {
+    const support = inAppInstallSupport({ platform: process.platform, isPackaged: app.isPackaged, env: process.env });
+    let updater = null;
+    if (support.canInstall) {
+        // CommonJS: autoUpdater is a lazy getter on module.exports, so it's read off the default.
+        const { default: electronUpdater } = await import('electron-updater');
+        updater = electronUpdater.autoUpdater;
+    }
+
+    return createAppUpdater({
+        updater,
+        support,
+        isHostingActive: () => isHostingActive(session.getState()),
+    });
+}
+
+async function startLauncher() {
     const { session, settingsStore, keepAwake } = createHosting();
+    const appUpdater = await createUpdater(session);
     const appVersion = resolveAppVersion({
         isPackaged: app.isPackaged,
         appVersion: app.getVersion(),
@@ -296,6 +319,7 @@ function startLauncher() {
         appVersion,
         checkGeminiKey: (key) => checkGeminiKey(key),
         checkForUpdate: () => checkForUpdate({ currentVersion: appVersion }),
+        appUpdater,
         openExternal: (url) => shell.openExternal(url),
         openPath: (filePath) => shell.openPath(filePath),
         licensePaths: resolveLicensePaths({ isPackaged: app.isPackaged, resourcesPath: process.resourcesPath, desktopRoot: DESKTOP_ROOT }),

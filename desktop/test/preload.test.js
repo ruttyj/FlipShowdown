@@ -14,6 +14,7 @@ const SUBSCRIPTIONS = {
     onUrlChanged: EVENT_CHANNELS.urlChanged,
     onPowerStatus: EVENT_CHANNELS.powerStatus,
     onRoomStats: EVENT_CHANNELS.roomStats,
+    onUpdateStatus: EVENT_CHANNELS.updateStatus,
 };
 
 /**

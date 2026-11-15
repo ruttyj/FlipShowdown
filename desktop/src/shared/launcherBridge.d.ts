@@ -86,6 +86,25 @@ export interface UpdateResult {
     url: string | null;
 }
 
+/** Why this build can't install updates itself (X90): macOS builds aren't Developer ID signed. */
+export type UpdateUnsupportedReason =
+    | 'running-from-source'
+    | 'macos-unsigned'
+    | 'linux-not-appimage'
+    | 'unsupported-platform';
+
+/** The in-app updater (X90). */
+export interface UpdateStatus {
+    /** False on macOS and from source: the banner links to the release page instead. */
+    canInstall: boolean;
+    unsupportedReason: UpdateUnsupportedReason | null;
+    phase: 'idle' | 'downloading' | 'ready' | 'failed';
+    /** 0-100 while downloading, 100 when ready, otherwise null. */
+    percent: number | null;
+    /** Why the last download failed. */
+    error: string | null;
+}
+
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
 export interface PowerStatus {
@@ -123,6 +142,13 @@ export interface LauncherBridge {
     /** Deletes the game database. Only while idle; otherwise resolves ok: false. */
     resetData(): Promise<ActionResult>;
     checkForUpdate(): Promise<UpdateResult>;
+    getUpdateStatus(): Promise<UpdateStatus>;
+    onUpdateStatus(callback: (status: UpdateStatus) => void): Unsubscribe;
+    /** Downloads the latest release in the background. ok: false when it failed or this build
+     * can't install in-app; progress arrives through onUpdateStatus. */
+    downloadUpdate(): Promise<ActionResult>;
+    /** Quits and installs the downloaded update. ok: false while hosting or before it's ready. */
+    installUpdate(): Promise<ActionResult>;
 
     /** Opens an https:// link to aistudio.google.com, github.com or the current game link in
      * the default browser; anything else rejects. */

@@ -1,10 +1,11 @@
-// Small subscriptions the launcher page keeps: the power source, the room stats, the update check
-// and the app version. The hosting session has its own hook (useHostingSession).
+// Small subscriptions the launcher page keeps: the power source, the room stats, the update check,
+// the in-app updater and the app version. The hosting session has its own hook (useHostingSession).
 import { useEffect, useState } from 'react';
 
 /** @typedef {import('../shared/launcherBridge').LauncherBridge} LauncherBridge */
 /** @typedef {import('../shared/launcherBridge').RoomStats} RoomStats */
 /** @typedef {import('../shared/launcherBridge').UpdateResult} UpdateResult */
+/** @typedef {import('../shared/launcherBridge').UpdateStatus} UpdateStatus */
 
 // --- Room stats ----------------------------------------------------------------------------
 
@@ -102,6 +103,43 @@ export function useAvailableUpdate(launcher) {
     }, [launcher]);
 
     return update;
+}
+
+// --- In-app updater ------------------------------------------------------------------------
+
+/**
+ * The in-app updater's status (X90), or null until it arrives. A failed read stays null, which
+ * the banner treats as "use the download page".
+ * @param {LauncherBridge} launcher
+ * @returns {UpdateStatus | null}
+ */
+export function useUpdateStatus(launcher) {
+    const [status, setStatus] = useState(/** @type {UpdateStatus | null} */ (null));
+
+    useEffect(() => {
+        let isSubscribed = true;
+        let hasPush = false;
+        const unsubscribe = launcher.onUpdateStatus((next) => {
+            hasPush = true;
+            setStatus(next);
+        });
+
+        // A push that lands before the read answers is newer, so the read doesn't overwrite it.
+        launcher.getUpdateStatus()
+            .then((initial) => {
+                if (isSubscribed && !hasPush) {
+                    setStatus(initial);
+                }
+            })
+            .catch(() => {});
+
+        return () => {
+            isSubscribed = false;
+            unsubscribe();
+        };
+    }, [launcher]);
+
+    return status;
 }
 
 // --- App version ---------------------------------------------------------------------------

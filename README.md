@@ -75,6 +75,13 @@ the Linux keyring); on Linux without a keyring it is stored unencrypted, and Set
 **Settings → Reset data** deletes the games. As with `npm run share`, anyone with the link can
 sign in while you host.
 
+When a new version is out, the launcher shows a banner. On Windows and with the Linux AppImage,
+**Update** downloads it in the app and **Restart to update** installs it (stop hosting first; if
+you don't restart, it installs the next time you quit). On macOS, **Download** opens the release
+page: quit the app, open the new disk image and drag Flip Showdown into Applications to replace
+the old one. The Mac build isn't signed with an Apple Developer ID, and macOS only lets an app
+update itself when it is.
+
 ### What the host stores
 
 Everything stays on the hosting computer: players' names, the emails they sign in with, chat,

@@ -39,7 +39,7 @@ export default function LauncherApp({ launcher }) {
                         {version && <p className="text-xs text-indigo-100/70">Version {version}</p>}
                     </header>
 
-                    <UpdateBanner launcher={launcher} />
+                    <UpdateBanner launcher={launcher} hostingStatus={status} />
 
                     <TabsContent value="home" className="mt-0">
                         <HomeScreen launcher={launcher} hosting={hosting} />

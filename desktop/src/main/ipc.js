@@ -35,6 +35,8 @@ const EXTERNAL_HOSTS = new Set(['aistudio.google.com', 'github.com']);
  * @property {string} appVersion
  * @property {(key: string) => Promise<string>} checkGeminiKey
  * @property {() => Promise<object>} checkForUpdate  bound to the app version by the caller
+ * @property {{ getStatus(): object, download(): Promise<object>, install(): object,
+ *   onStatus(listener: (status: object) => void): () => void }} appUpdater  appUpdater.js (X90)
  * @property {(url: string) => Promise<void>} openExternal  shell.openExternal
  * @property {(filePath: string) => Promise<string>} openPath  shell.openPath: '' on success,
  *   otherwise the error
@@ -324,6 +326,9 @@ function createHandlers(deps, urlAge, roomStats) {
         [INVOKE_CHANNELS.validateGeminiKey]: (key) => deps.checkGeminiKey(checkGeminiKeyPayload(key)),
         [INVOKE_CHANNELS.resetData]: resetData,
         [INVOKE_CHANNELS.checkForUpdate]: () => deps.checkForUpdate(),
+        [INVOKE_CHANNELS.getUpdateStatus]: () => deps.appUpdater.getStatus(),
+        [INVOKE_CHANNELS.downloadUpdate]: () => deps.appUpdater.download(),
+        [INVOKE_CHANNELS.installUpdate]: () => deps.appUpdater.install(),
         [INVOKE_CHANNELS.openExternal]: async (url) => {
             await deps.openExternal(checkExternalUrl(url, session.getState().url));
         },
@@ -351,8 +356,8 @@ function guardSender(isTrustedSender, handler) {
 // --- Registration --------------------------------------------------------------------------
 
 /**
- * Pushes session and power changes to the renderer. Room stats are cached, and sent only while
- * the window is visible; showing it sends the latest once (X66).
+ * Pushes session, power and update changes to the renderer. Room stats are cached, and sent only
+ * while the window is visible; showing it sends the latest once (X66).
  * @param {IpcDependencies} deps
  * @param {ReturnType<typeof createUrlAgeTracker>} urlAge
  * @param {RoomStatsCache} roomStats
@@ -380,6 +385,7 @@ function forwardEvents(deps, urlAge, roomStats) {
     };
     session.on('room-stats', onRoomStats);
     const stopShown = windowVisibility.onShown(() => send(EVENT_CHANNELS.roomStats, roomStats.latest));
+    const stopUpdateStatus = deps.appUpdater.onStatus((status) => send(EVENT_CHANNELS.updateStatus, status));
 
     return () => {
         session.removeListener('state', onState);
@@ -387,6 +393,7 @@ function forwardEvents(deps, urlAge, roomStats) {
         session.removeListener('room-stats', onRoomStats);
         stopPower();
         stopShown();
+        stopUpdateStatus();
     };
 }
 

@@ -18,6 +18,9 @@ const INVOKE_CHANNELS = Object.freeze({
     validateGeminiKey: 'launcher:validate-gemini-key',
     resetData: 'launcher:reset-data',
     checkForUpdate: 'launcher:check-for-update',
+    getUpdateStatus: 'launcher:get-update-status',
+    downloadUpdate: 'launcher:download-update',
+    installUpdate: 'launcher:install-update',
     openExternal: 'launcher:open-external',
     openGame: 'launcher:open-game',
     openLicense: 'launcher:open-license',
@@ -31,6 +34,7 @@ const EVENT_CHANNELS = Object.freeze({
     urlChanged: 'launcher:url-changed',
     powerStatus: 'launcher:power-status',
     roomStats: 'launcher:room-stats',
+    updateStatus: 'launcher:update-status',
 });
 
 /**
@@ -69,6 +73,10 @@ const bridge = {
     validateGeminiKey: (key) => ipcRenderer.invoke(INVOKE_CHANNELS.validateGeminiKey, key),
     resetData: () => ipcRenderer.invoke(INVOKE_CHANNELS.resetData),
     checkForUpdate: () => ipcRenderer.invoke(INVOKE_CHANNELS.checkForUpdate),
+    getUpdateStatus: () => ipcRenderer.invoke(INVOKE_CHANNELS.getUpdateStatus),
+    onUpdateStatus: (callback) => subscribe(EVENT_CHANNELS.updateStatus, callback),
+    downloadUpdate: () => ipcRenderer.invoke(INVOKE_CHANNELS.downloadUpdate),
+    installUpdate: () => ipcRenderer.invoke(INVOKE_CHANNELS.installUpdate),
     openExternal: (url) => ipcRenderer.invoke(INVOKE_CHANNELS.openExternal, url),
     openGame: () => ipcRenderer.invoke(INVOKE_CHANNELS.openGame),
     openLicense: (name) => ipcRenderer.invoke(INVOKE_CHANNELS.openLicense, name),

@@ -172,3 +172,114 @@ describe('the update banner', () => {
         expect(screen.queryByRole('region', { name: 'Update available' })).not.toBeInTheDocument();
     });
 });
+
+// --- In-app update -------------------------------------------------------------------------
+
+const UPDATE = { updateAvailable: true, latestVersion: '1.2.0', url: RELEASE_URL };
+const IN_APP = { canInstall: true, unsupportedReason: null };
+
+/** Renders the launcher with an update out and waits for the banner. */
+async function renderWithUpdate(options = {}) {
+    const fake = createFakeLauncher(options);
+    fake.launcher.checkForUpdate.mockResolvedValue(UPDATE);
+    const user = userEvent.setup();
+    render(<LauncherApp launcher={fake.launcher} />);
+    const banner = await screen.findByRole('region', { name: 'Update available' });
+    return { fake, user, banner };
+}
+
+describe('updating from the app', () => {
+    test('Update downloads in the app, showing progress, then offers a restart', async () => {
+        const { fake, user } = await renderWithUpdate({ updateStatus: IN_APP });
+
+        await user.click(await screen.findByRole('button', { name: 'Update' }));
+        expect(fake.launcher.downloadUpdate).toHaveBeenCalledTimes(1);
+        expect(screen.queryByRole('button', { name: 'Download' })).not.toBeInTheDocument();
+
+        fake.emitUpdateStatus({ phase: 'downloading', percent: 42 });
+        const progress = screen.getByRole('progressbar', { name: 'Downloading version 1.2.0' });
+        expect(progress).toHaveAttribute('aria-valuenow', '42');
+        expect(screen.getByText('Downloading… 42%')).toBeInTheDocument();
+
+        fake.emitUpdateStatus({ phase: 'ready', percent: 100 });
+        expect(screen.getByTestId('update-announcement')).toHaveTextContent('Version 1.2.0 has downloaded.');
+        await user.click(screen.getByRole('button', { name: 'Restart to update' }));
+
+        expect(fake.launcher.installUpdate).toHaveBeenCalledTimes(1);
+        expect(screen.getByText(/installs the next time you quit/)).toBeInTheDocument();
+    });
+
+    test('a download already running when the page loads shows its progress', async () => {
+        await renderWithUpdate({ updateStatus: { ...IN_APP, phase: 'downloading', percent: 10 } });
+
+        expect(await screen.findByRole('progressbar')).toHaveAttribute('aria-valuenow', '10');
+    });
+
+    test('Restart to update is disabled while hosting, so players are not cut off', async () => {
+        const { fake } = await renderWithUpdate({
+            updateStatus: { ...IN_APP, phase: 'ready', percent: 100 },
+            snapshot: { status: 'hosting', url: 'https://brave-otter-lamp.trycloudflare.com' },
+        });
+
+        const restart = await screen.findByRole('button', { name: 'Restart to update' });
+        await vi.waitFor(() => expect(restart).toBeDisabled());
+        expect(screen.getByText('Stop hosting to restart and update.')).toBeInTheDocument();
+
+        fake.emitState({ status: 'idle', url: null });
+
+        expect(restart).toBeEnabled();
+    });
+
+    test('a restart the app refuses shows why', async () => {
+        const { fake, user } = await renderWithUpdate({ updateStatus: { ...IN_APP, phase: 'ready', percent: 100 } });
+        fake.launcher.installUpdate.mockResolvedValue({ ok: false, error: 'Stop hosting before restarting to update.' });
+
+        await user.click(await screen.findByRole('button', { name: 'Restart to update' }));
+
+        expect(await screen.findByRole('alert')).toHaveTextContent('Stop hosting before restarting to update.');
+    });
+
+    test('a failed download says why, and offers a retry and the download page', async () => {
+        const { fake, user } = await renderWithUpdate({ updateStatus: IN_APP });
+
+        fake.emitUpdateStatus({ phase: 'failed', error: 'net::ERR_INTERNET_DISCONNECTED' });
+
+        expect(screen.getByRole('alert')).toHaveTextContent("The update didn't download: net::ERR_INTERNET_DISCONNECTED");
+        await user.click(screen.getByRole('button', { name: 'Try again' }));
+        expect(fake.launcher.downloadUpdate).toHaveBeenCalledTimes(1);
+        await user.click(screen.getByRole('button', { name: 'Download' }));
+        expect(fake.launcher.openExternal).toHaveBeenCalledWith(RELEASE_URL);
+    });
+
+    test('a download request that rejects shows the error', async () => {
+        const { fake, user } = await renderWithUpdate({ updateStatus: IN_APP });
+        fake.launcher.downloadUpdate.mockRejectedValue(new Error('IPC channel closed'));
+
+        await user.click(await screen.findByRole('button', { name: 'Update' }));
+
+        expect(await screen.findByRole('alert')).toHaveTextContent("The update didn't download: IPC channel closed");
+    });
+
+    test('macOS gets the download page and how to replace the app, not an Update button', async () => {
+        const { fake, user, banner } = await renderWithUpdate({
+            updateStatus: { canInstall: false, unsupportedReason: 'macos-unsigned' },
+        });
+
+        await vi.waitFor(() => expect(banner).toHaveTextContent('drag Flip Showdown into Applications'));
+        expect(screen.queryByRole('button', { name: 'Update' })).not.toBeInTheDocument();
+        await user.click(screen.getByRole('button', { name: 'Download' }));
+
+        expect(fake.launcher.openExternal).toHaveBeenCalledWith(RELEASE_URL);
+        expect(fake.launcher.downloadUpdate).not.toHaveBeenCalled();
+    });
+
+    test('an updater status that cannot be read falls back to the download page', async () => {
+        const fake = createFakeLauncher({ updateStatus: IN_APP });
+        fake.launcher.getUpdateStatus.mockRejectedValue(new Error('IPC channel closed'));
+        fake.launcher.checkForUpdate.mockResolvedValue(UPDATE);
+        render(<LauncherApp launcher={fake.launcher} />);
+
+        expect(await screen.findByRole('button', { name: 'Download' })).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Update' })).not.toBeInTheDocument();
+    });
+});

@@ -1,6 +1,6 @@
-// Notify-only update check (decision 16): compares the latest GitHub Release tag with the app
-// version and hands back the release page for a download link. It never downloads or installs
-// anything, and any failure simply means "no update".
+// The update check: compares the latest GitHub Release tag with the app version and hands back
+// the release page for a download link. It never downloads or installs anything (appUpdater.js
+// does that where the build allows, X90), and any failure simply means "no update".
 
 /** Used when package.json has no GitHub `repository`. */
 export const DEFAULT_REPO = 'ruttyj/FlipShowdown';

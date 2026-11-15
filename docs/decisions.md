@@ -623,9 +623,21 @@ New decisions get the next X number (the last used is X89).
     Only the area below the strip scrolls, so the scrollbar starts under the window buttons. The window's
     background matches the gradient, so it never flashes white while loading.
   - *Builds are unsigned* (ad-hoc on macOS), so first runs show SmartScreen or Gatekeeper warnings; the
-    README says how to get past them. Updates are notify-only: the launcher checks GitHub Releases on start.
+    README says how to get past them. The launcher checks GitHub Releases on start and updates as X90 says.
     Each release also carries a fixed-name copy of every installer, which the README's
     `releases/latest/download/...` links point at.
+  - *Updating from the app* (X90). `updateCheck.js` still decides whether a newer release is out (the
+    GitHub API, on start). Where the build can install itself, the banner's **Update** downloads it with
+    `electron-updater` (`appUpdater.js`; never automatically), showing a progress bar, then **Restart to
+    update** quits and installs. Restart is disabled in the UI and refused in main while hosting (not
+    `idle` or `failed`), because it would drop every player. A downloaded update the user didn't restart
+    for installs when they next quit (`autoInstallOnAppQuit`). A failed download shows the error with
+    **Try again** and **Download** (the release page). Installing in-app works only on packaged Windows
+    (NSIS, per user) and the Linux AppImage (`APPIMAGE` set). *macOS never does*: Squirrel.Mac only
+    accepts an update signed with the running app's Developer ID, and the build is ad-hoc signed, so
+    there `electron-updater` isn't even loaded. The Mac banner keeps **Download** and says to quit, open
+    the disk image and drag the app into Applications. Running from source behaves like macOS. Drafts are
+    invisible to `electron-updater`, so nobody gets a release before it's published.
   - *Electron 41 is pinned with `better-sqlite3` 12.8.0*: 12.8.0 ships Electron prebuilds only up to
     Electron 41's ABI, and building from source needs Python and MSVC. `better-sqlite3` 13 (N-API, one
     binary for every Electron) would allow a supported Electron, but needs Node 22 for the server.
