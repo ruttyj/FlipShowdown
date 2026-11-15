@@ -78,6 +78,9 @@ Most of `src/lib` was built this way (`maxScore`, `scoreEntryCards`, `handEntry`
 - **A part of the composed server** (the sweep, the launcher reporter, a clock): build an `App` with
   `createProviders()` and `app.get` it, as `server/test/app/providers.test.js` does. `createServer`
   only returns `{ app, server, store, hub, sweepStaleRooms, close }`.
+- **One HTTP controller or middleware**: `server/test/http/httpHarness.js` serves a controller's
+  `router()` on a free port over fake services (`serveApp`), or calls a middleware with
+  `fakeResponse()`. Express gives `req.query` a null prototype, so spread it before `deepEqual`.
 - **`server/test/fixtures/legacyDb.js`** writes a `flip7.db` as servers before migrations left it (the
   old schema, game records as JSON in `records`, no `schema_migrations`) and inserts raw rows into it.
   Close it, then open the store on the same folder to run the migrations (`legacyUpgrade.test.js`).

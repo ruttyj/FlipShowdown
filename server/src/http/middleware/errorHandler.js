@@ -1,8 +1,21 @@
-// The last handlers in the Express chain: unknown /api paths and errors no route handled.
+import { StoreError } from '../../domain/errors.js';
 
-/** Answers an unknown /api path (mounted behind requireUser, as the contract says). */
-export function apiNotFound(req, res) {
-    res.status(404).json({ message: 'Not found' });
+// Error middleware. handleStoreError sits at the end of the entities router; the final handler
+// built by createErrorHandler sits at the end of the whole app.
+
+/**
+ * A write the store refused (wrong type, unknown room, duplicate member, ...) is the caller's
+ * fault, so it gets the StoreError's 400 or 409 instead of the app's 500. Anything else goes on
+ * to the final handler.
+ */
+// Express recognises error handlers by their four parameters.
+// eslint-disable-next-line no-unused-vars
+export function handleStoreError(error, req, res, next) {
+    if (!(error instanceof StoreError)) {
+        next(error);
+        return;
+    }
+    res.status(error.status).json(error.toBody());
 }
 
 /**

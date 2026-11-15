@@ -1,19 +1,27 @@
-import { createAiRouter } from '../http/aiRoutes.js';
+import { AiController } from '../http/controllers/AiController.js';
+import { ScanService } from '../services/ai/ScanService.js';
 import { BaseProvider } from './BaseProvider.js';
 
-// AI card scanning: the /api/ai router with its Gemini client, model catalog and rate limit. The
-// `geminiFetch` option replaces fetch for Gemini calls (tests).
+// AI card scanning: the ScanService (Gemini client, model catalog and rate limit) and the /api/ai
+// router HttpProvider mounts. The `geminiFetch` option replaces fetch for Gemini calls (tests).
 
 export class AiProvider extends BaseProvider {
     register(app) {
-        app.register('aiRouter', () => {
-            const clock = app.get('aiClock');
-            return createAiRouter({
-                config: app.get('config'),
+        app.register('scanService', () => {
+            const config = app.get('config');
+            return new ScanService({
+                apiKey: config.geminiApiKey,
+                defaultModel: config.geminiModel,
                 logger: app.get('logger'),
                 fetchImpl: app.options.geminiFetch,
-                now: () => clock.now(),
+                clock: app.get('aiClock'),
             });
+        });
+        app.register('aiController', () => {
+            return new AiController({ scans: app.get('scanService') });
+        });
+        app.register('aiRouter', () => {
+            return app.get('aiController').router();
         });
     }
 }

@@ -14,7 +14,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
-import { MAX_IMAGE_BYTES } from '../src/http/aiRoutes.js';
+import { MAX_IMAGE_BYTES } from '../src/services/ai/ScanService.js';
 import { GeminiError, createGeminiClient } from '../src/services/ai/gemini.js';
 import { buildScanRequest, getScanMode, normaliseScanResult } from '../src/services/ai/scanModes.js';
 import { readImageSize } from './imageSize.js';
