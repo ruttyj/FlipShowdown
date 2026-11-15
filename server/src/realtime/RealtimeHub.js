@@ -4,7 +4,6 @@ import { EntryStatusManager } from '../managers/EntryStatusManager.js';
 import { EventPublisher } from '../managers/EventPublisher.js';
 import { Lifecycle } from '../managers/Lifecycle.js';
 import { PresenceManager } from '../managers/PresenceManager.js';
-import { createStoreViews } from '../managers/storeViews.js';
 import { SubscriptionManager } from '../managers/SubscriptionManager.js';
 import { VoteManager } from '../managers/VoteManager.js';
 import { createSocketHandlers } from './handlers/index.js';
@@ -38,7 +37,9 @@ export class RealtimeHub {
      * Builds the managers and the socket edge and starts the connection timers. Options:
      *   authenticate(headers) - resolves to { email, ... } or null; unauthenticated upgrades get a
      *     401 and never reach ws
-     *   store - the db.js store (its repositories: event log, GameRoom and Player records)
+     *   eventLog - the EventRepository events are stored in and replayed from
+     *   rooms, players - the GameRoom and Player reads and writes the managers use (see
+     *     managers/storeViews.js for their shape)
      *   isAdmin(identity) - whether the identity may subscribe to "*"
      *   logger - console-like
      *   clock - the Clock every manager reads (presence liveness, vote countdowns, entry windows)
@@ -158,7 +159,9 @@ export class RealtimeHub {
 
     /** Builds the managers over one Clock and one Lifecycle, from the constructor's options. */
     #createManagers(webSocketServer, {
-        store,
+        eventLog,
+        rooms,
+        players,
         isAdmin,
         logger,
         clock,
@@ -168,7 +171,6 @@ export class RealtimeHub {
         heartbeatIntervalMs,
         livenessCheckIntervalMs,
     }) {
-        const { rooms, players } = createStoreViews(store);
         this.#lifecycle = new Lifecycle({ logger });
         this.#connections = new ConnectionManager({
             clients: webSocketServer.clients,
@@ -180,7 +182,7 @@ export class RealtimeHub {
         });
         this.#subscriptions = new SubscriptionManager({ connections: this.#connections, players, isAdmin });
         this.#publisher = new EventPublisher({
-            eventLog: store.repositories.events,
+            eventLog,
             connections: this.#connections,
             subscriptions: this.#subscriptions,
             lifecycle: this.#lifecycle,

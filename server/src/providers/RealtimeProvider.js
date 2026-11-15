@@ -1,3 +1,4 @@
+import { createStoreViews } from '../managers/storeViews.js';
 import { RealtimeHub } from '../realtime/RealtimeHub.js';
 import { BaseProvider } from './BaseProvider.js';
 
@@ -11,9 +12,14 @@ export class RealtimeProvider extends BaseProvider {
         app.register('hub', () => {
             const config = app.get('config');
             const authenticator = app.get('authenticator');
+            // Built on the store rather than the repositories: one of its reads goes through the
+            // store facade, which entryStatus.test counts (see storeViews.js).
+            const { rooms, players } = createStoreViews(app.get('store'));
             return new RealtimeHub({
                 authenticate: (headers) => authenticator.authenticate(headers),
-                store: app.get('store'),
+                eventLog: app.get('repositories').events,
+                rooms,
+                players,
                 isAdmin: (identity) => config.adminEmails.has(identity.email),
                 logger: app.get('logger'),
                 clock: app.get('realtimeClock'),

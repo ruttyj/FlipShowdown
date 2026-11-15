@@ -73,14 +73,19 @@ export class HttpProvider extends BaseProvider {
         app.register('userService', () => {
             const config = app.get('config');
             return new UserService({
-                store: app.get('store'),
+                userRepository: app.get('repositories').users,
                 adminEmails: config.adminEmails,
                 sessionSecret: config.sessionSecret,
             });
         });
         app.register('entityService', () => {
             const config = app.get('config');
+            const repositories = app.get('repositories');
             return new EntityService({
+                entityGateway: app.get('entityGateway'),
+                roomRepository: repositories.rooms,
+                playerRepository: repositories.players,
+                // Only for create, whose store.createRecords call coverageGaps.test replaces.
                 store: app.get('store'),
                 // The hub object itself, whose methods the service looks up when it publishes.
                 hub: app.get('hub'),

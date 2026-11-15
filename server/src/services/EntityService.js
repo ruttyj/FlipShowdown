@@ -1,6 +1,5 @@
 import { CHAT_MESSAGE, PLAYER, ROOM, ROUND_SCORE } from '../domain/entities.js';
 import { isPlainObject, matchesFilter, paginate, sortEntries } from '../lib/query.js';
-import { EntityGateway } from '../repositories/EntityGateway.js';
 
 // The generic entity API behind /api/entities: who may reach which records while
 // LOCK_GAME_ENTITIES is on, the reads and writes themselves, and the realtime events a write sends.
@@ -11,17 +10,18 @@ const LOCKED_WRITE_ENTITIES = new Set([ROOM, PLAYER, ROUND_SCORE]);
 
 export class EntityService {
     /**
-     * `store` is the db.js store. Reads and writes go through its repositories (an EntityGateway
-     * over them), except create (see there). `hub` is the realtime hub, called through the object
-     * at call time, so a test that replaces one of its methods reaches this code too.
+     * Reads and writes go through `entityGateway` (an EntityGateway), and the lock's membership
+     * checks through `roomRepository` and `playerRepository`. `store` is the db.js store facade,
+     * used only by create (see there). `hub` is the realtime hub, called through the object at
+     * call time, so a test that replaces one of its methods reaches this code too.
      * `entityNames` is the Set of entity names the API serves. `lockGameEntities` is the
      * LOCK_GAME_ENTITIES flag and `adminEmails` the Set of addresses it doesn't apply to.
      */
-    constructor({ store, hub, entityNames, lockGameEntities, adminEmails }) {
+    constructor({ entityGateway, roomRepository, playerRepository, store, hub, entityNames, lockGameEntities, adminEmails }) {
+        this.entities = entityGateway;
+        this.rooms = roomRepository;
+        this.players = playerRepository;
         this.store = store;
-        this.rooms = store.repositories.rooms;
-        this.players = store.repositories.players;
-        this.entities = new EntityGateway(store.database, store.repositories);
         this.hub = hub;
         this.entityNames = entityNames;
         this.lockGameEntities = lockGameEntities;

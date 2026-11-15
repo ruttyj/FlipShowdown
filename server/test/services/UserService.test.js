@@ -15,7 +15,7 @@ describe('UserService', () => {
     beforeEach(() => {
         temp = openTempStore();
         users = new UserService({
-            store: temp.store,
+            userRepository: temp.store.repositories.users,
             adminEmails: new Set(['boss@example.com']),
             sessionSecret: SECRET,
         });

@@ -1,16 +1,16 @@
-import { createSessionToken, normaliseEmail, normaliseName } from './auth.js';
+import { normaliseEmail } from '../lib/email.js';
+import { createSessionToken, normaliseName } from './auth.js';
 
 // The signed-in user: found or created from a verified identity, renamed, given a dev session, and
 // shaped for the API. A user's role is never stored; it comes from ADMIN_EMAILS on every read.
 
 export class UserService {
     /**
-     * `store` is the db.js store, of which only its UserRepository (`store.repositories.users`) is
-     * used. `adminEmails` is the Set of admin addresses and `sessionSecret` the key dev session
-     * cookies are signed with.
+     * `userRepository` is the UserRepository, `adminEmails` the Set of admin addresses and
+     * `sessionSecret` the key dev session cookies are signed with.
      */
-    constructor({ store, adminEmails, sessionSecret }) {
-        this.userRepository = store.repositories.users;
+    constructor({ userRepository, adminEmails, sessionSecret }) {
+        this.userRepository = userRepository;
         this.adminEmails = adminEmails;
         this.sessionSecret = sessionSecret;
     }

@@ -133,40 +133,58 @@ export function selectScanningModels(rawModels, defaultModel) {
 
 // --- Cache ---------------------------------------------------------------
 
-async function loadModels(state) {
-    try {
-        const rawModels = await state.client.listModels();
-        state.models = selectScanningModels(rawModels, state.defaultModel);
-        state.expiresAt = state.now() + CACHE_TTL_MS;
-    } catch (error) {
-        state.logger.warn(`Could not list Gemini models, offering only ${state.defaultModel}: ${error.detail || error.message}`);
-        state.models = selectScanningModels([], state.defaultModel);
-        state.expiresAt = state.now() + FAILURE_TTL_MS;
+/**
+ * The offered model list, from a GeminiClient (`client`, anything with listModels()). The list is
+ * cached for an hour; a failed list call falls back to just the default model (cached briefly)
+ * instead of rejecting. Concurrent callers share one fetch. `now` returns ms (Date.now by default).
+ */
+export class ModelCatalog {
+    #client;
+    #defaultModel;
+    #logger;
+    #now;
+    #models = null;
+    #expiresAt = 0;
+    // The list call in flight, or null.
+    #pending = null;
+
+    constructor({ client, defaultModel, logger, now = Date.now }) {
+        this.#client = client;
+        this.#defaultModel = defaultModel;
+        this.#logger = logger;
+        this.#now = now;
     }
-    return state.models;
+
+    /** Resolves to the offered list, [{ id, display_name }] with the default first. Never rejects. */
+    getModels() {
+        const isFresh = this.#models && this.#now() < this.#expiresAt;
+        if (isFresh) {
+            return Promise.resolve(this.#models);
+        }
+
+        if (!this.#pending) {
+            this.#pending = this.#loadModels().finally(() => {
+                this.#pending = null;
+            });
+        }
+        return this.#pending;
+    }
+
+    async #loadModels() {
+        try {
+            const rawModels = await this.#client.listModels();
+            this.#models = selectScanningModels(rawModels, this.#defaultModel);
+            this.#expiresAt = this.#now() + CACHE_TTL_MS;
+        } catch (error) {
+            this.#logger.warn(`Could not list Gemini models, offering only ${this.#defaultModel}: ${error.detail || error.message}`);
+            this.#models = selectScanningModels([], this.#defaultModel);
+            this.#expiresAt = this.#now() + FAILURE_TTL_MS;
+        }
+        return this.#models;
+    }
 }
 
-/**
- * Returns { getModels() } resolving to the offered model list. The list is
- * cached for an hour; a failed list call falls back to just the default model
- * (cached briefly) instead of rejecting. Concurrent callers share one fetch.
- */
-export function createModelCatalog({ client, defaultModel, logger, now = Date.now }) {
-    const state = { client, defaultModel, logger, now, models: null, expiresAt: 0, pending: null };
-
-    return {
-        getModels() {
-            const isFresh = state.models && state.now() < state.expiresAt;
-            if (isFresh) {
-                return Promise.resolve(state.models);
-            }
-
-            if (!state.pending) {
-                state.pending = loadModels(state).finally(() => {
-                    state.pending = null;
-                });
-            }
-            return state.pending;
-        },
-    };
+/** A ModelCatalog, for aiModels.test. Same options; production code constructs the class. */
+export function createModelCatalog(options) {
+    return new ModelCatalog(options);
 }

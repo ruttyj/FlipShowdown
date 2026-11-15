@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { beforeEach, describe, test } from 'node:test';
 import { Clock } from '../../src/domain/clock.js';
-import { MAX_IMAGE_BYTES, ScanOutcome, ScanService } from '../../src/services/ai/ScanService.js';
+import { ModelCatalog } from '../../src/services/ai/aiModels.js';
+import { GeminiClient } from '../../src/services/ai/gemini.js';
+import { createScanRateLimiter, MAX_IMAGE_BYTES, ScanOutcome, ScanService } from '../../src/services/ai/ScanService.js';
 
 // ScanService over a fake Gemini fetch and a fake clock. ai.test.js covers it through the HTTP
 // API, including the prompts and the model catalog.
@@ -28,19 +30,34 @@ describe('ScanService', () => {
     let warnings;
     let generate;
 
-    /** A service with a Gemini key whose scans `generate()` answers. */
+    /**
+     * A service whose scans `generate()` answers, wired as AiProvider wires it. Without an
+     * `apiKey` it has no client or catalog, so scanning is disabled.
+     */
     function createService(apiKey = 'key') {
-        return new ScanService({
-            apiKey,
-            defaultModel: DEFAULT_MODEL,
-            logger: { warn: (message) => warnings.push(message) },
-            fetchImpl: async (url) => {
+        const clock = new Clock(() => time);
+        const now = () => clock.now();
+        const logger = { warn: (message) => warnings.push(message) };
+
+        let client = null;
+        let catalog = null;
+        if (apiKey) {
+            const fetchImpl = async (url) => {
                 if (String(url).includes(':generateContent')) {
                     return generate();
                 }
                 return jsonResponse(200, { models: MODEL_LIST });
-            },
-            clock: new Clock(() => time),
+            };
+            client = new GeminiClient({ apiKey, fetchImpl });
+            catalog = new ModelCatalog({ client, defaultModel: DEFAULT_MODEL, logger, now });
+        }
+
+        return new ScanService({
+            client,
+            catalog,
+            limiter: createScanRateLimiter(now),
+            defaultModel: DEFAULT_MODEL,
+            logger,
         });
     }
 

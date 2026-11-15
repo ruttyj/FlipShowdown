@@ -1,6 +1,5 @@
 import { RateLimiter } from '../../lib/RateLimiter.js';
-import { createModelCatalog } from './aiModels.js';
-import { GeminiError, createGeminiClient } from './gemini.js';
+import { GeminiError } from './gemini.js';
 import { buildScanRequest, getScanMode, normaliseScanResult } from './scanModes.js';
 
 // AI card scanning: the models on offer, the per-user scan rate limit, and reading the cards in a
@@ -13,6 +12,11 @@ export const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 // Anyone who can open the public URL can sign in, so cap how fast one user can spend quota.
 const SCANS_PER_WINDOW = 20;
 const RATE_WINDOW_MS = 60 * 1000;
+
+/** The per-user scan rate limit ScanService expects as its `limiter`, timed by `now()` (ms). */
+export function createScanRateLimiter(now) {
+    return new RateLimiter({ limit: SCANS_PER_WINDOW, windowMs: RATE_WINDOW_MS, now });
+}
 
 // --- Image data URLs -----------------------------------------------------
 
@@ -84,22 +88,16 @@ function describeGeminiFailure(error) {
 
 export class ScanService {
     /**
-     * Scanning is disabled (config says enabled: false) when `apiKey` is empty. `defaultModel` is
-     * the GEMINI_MODEL setting, `fetchImpl` replaces fetch for Gemini calls (tests) and `clock`
-     * times the model cache and the rate limit.
+     * `client` is the GeminiClient and `catalog` the ModelCatalog over it, both null when there is
+     * no Gemini key: scanning is then disabled (config says enabled: false). `defaultModel` is the
+     * GEMINI_MODEL setting and `limiter` the per-user scan RateLimiter (see createScanRateLimiter).
      */
-    constructor({ apiKey, defaultModel, logger, fetchImpl, clock }) {
-        const now = () => clock.now();
+    constructor({ client, catalog, limiter, defaultModel, logger }) {
+        this.client = client;
+        this.catalog = catalog;
+        this.limiter = limiter;
         this.defaultModel = defaultModel;
         this.logger = logger;
-        this.limiter = new RateLimiter({ limit: SCANS_PER_WINDOW, windowMs: RATE_WINDOW_MS, now });
-        this.client = null;
-        this.catalog = null;
-
-        if (apiKey) {
-            this.client = createGeminiClient({ apiKey, fetchImpl });
-            this.catalog = createModelCatalog({ client: this.client, defaultModel, logger, now });
-        }
     }
 
     isEnabled() {

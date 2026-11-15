@@ -192,16 +192,30 @@ async function generateJson(context, { model, prompt, image, schema }) {
 // --- Public API ----------------------------------------------------------
 
 /**
- * Returns { listModels(), generateJson({ model, prompt, image, schema }) }.
+ * The Gemini REST client, over the server's `apiKey`. `fetchImpl` replaces fetch (tests).
  *   listModels()   -> raw Model resources from GET /v1beta/models (all pages)
- *   generateJson() -> the parsed JSON answer; image is { mimeType, base64 };
+ *   generateJson({ model, prompt, image, schema })
+ *                  -> the parsed JSON answer; image is { mimeType, base64 };
  *                     schema is optional (omit it for models without structured output)
  * Both reject with GeminiError.
  */
-export function createGeminiClient({ apiKey, fetchImpl = globalThis.fetch }) {
-    const context = { apiKey, fetchImpl };
-    return {
-        listModels: () => listModels(context),
-        generateJson: (request) => generateJson(context, request),
-    };
+export class GeminiClient {
+    #context;
+
+    constructor({ apiKey, fetchImpl = globalThis.fetch }) {
+        this.#context = { apiKey, fetchImpl };
+    }
+
+    listModels() {
+        return listModels(this.#context);
+    }
+
+    generateJson(request) {
+        return generateJson(this.#context, request);
+    }
+}
+
+/** A GeminiClient, for gemini.test. Same options; production code constructs the class. */
+export function createGeminiClient(options) {
+    return new GeminiClient(options);
 }

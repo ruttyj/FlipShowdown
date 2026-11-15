@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, test } from 'node:test';
 import { parseListQuery } from '../../src/lib/query.js';
+import { EntityGateway } from '../../src/repositories/EntityGateway.js';
 import { EntityService } from '../../src/services/EntityService.js';
 import { GUEST, HOST, OUTSIDER, openTempStore, seedRoom } from '../actions/roomFixture.js';
 
@@ -26,8 +27,12 @@ describe('EntityService', () => {
     let seeded;
 
     function createService(lockGameEntities) {
+        const { store } = temp;
         return new EntityService({
-            store: temp.store,
+            entityGateway: new EntityGateway(store.database, store.repositories),
+            roomRepository: store.repositories.rooms,
+            playerRepository: store.repositories.players,
+            store,
             hub,
             entityNames: ENTITY_NAMES,
             lockGameEntities,

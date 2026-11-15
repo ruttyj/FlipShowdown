@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { normaliseEmail } from '../lib/email.js';
 
-// Re-exported so the modules that validate emails through auth.js keep their imports.
+// Lives in lib/email.js; re-exported for email.test, which checks auth.js uses the same function.
 export { normaliseEmail };
 
 export const SESSION_COOKIE = 'flip7_session';
@@ -124,65 +124,87 @@ function readCloudflareToken(headers, cookies) {
     return cookies.get(CF_JWT_COOKIE) || null;
 }
 
-async function verifyCloudflareToken(context, token) {
-    try {
-        const { payload } = await jwtVerify(token, context.keySet, {
-            issuer: context.issuer,
-            audience: context.audience,
-        });
-        const email = normaliseEmail(payload.email);
-        if (!email) {
-            return null;
-        }
-        return { email, full_name: normaliseName(payload.name) };
-    } catch (error) {
-        context.logger.warn(`Rejected Cloudflare Access token: ${error.code || error.message}`);
-        return null;
+// --- Authenticators ------------------------------------------------------
+// Each has `mode` ('dev' or 'cloudflare') and `authenticate(headers)`, which works on raw Node
+// headers so it serves both Express requests and WebSocket upgrades. It resolves to
+// { email, full_name } or null.
+
+/** AUTH_MODE=dev: the signed session cookie the dev login sets, checked with `sessionSecret`. */
+export class DevSessionAuthenticator {
+    #sessionSecret;
+
+    constructor({ sessionSecret }) {
+        this.mode = 'dev';
+        this.#sessionSecret = sessionSecret;
+    }
+
+    async authenticate(headers) {
+        const cookies = parseCookies(headers.cookie);
+        return verifySessionToken(this.#sessionSecret, cookies.get(SESSION_COOKIE));
     }
 }
 
-// --- Authenticator -------------------------------------------------------
-
 /**
- * Builds the request authenticator for the configured AUTH_MODE.
- *
- * `authenticate(headers)` works on raw Node headers so it serves both Express
- * requests and WebSocket upgrades. It resolves to { email, full_name } or null.
- *
- * `options.keySet` replaces the remote Cloudflare JWKS (used by tests).
+ * AUTH_MODE=cloudflare: the Cloudflare Access JWT for team domain `teamDomain` and application
+ * `audience`. `keySet` replaces the remote Cloudflare JWKS (tests); a rejected token is logged
+ * as a warning on `logger`.
  */
-export function createAuthenticator(config, options = {}) {
-    const logger = options.logger || console;
+export class CloudflareAuthenticator {
+    #keySet;
+    #issuer;
+    #audience;
+    #logger;
 
-    if (config.authMode === 'dev') {
-        return {
-            mode: 'dev',
-            async authenticate(headers) {
-                const cookies = parseCookies(headers.cookie);
-                return verifySessionToken(config.sessionSecret, cookies.get(SESSION_COOKIE));
-            },
-        };
+    constructor({ teamDomain, audience, keySet, logger }) {
+        this.mode = 'cloudflare';
+        // Created once: jose caches the fetched keys inside this object and
+        // refreshes them when it sees an unknown key id.
+        this.#keySet = keySet || createRemoteJWKSet(new URL(`https://${teamDomain}/cdn-cgi/access/certs`));
+        this.#issuer = `https://${teamDomain}`;
+        this.#audience = audience;
+        this.#logger = logger;
     }
 
-    // Created once: jose caches the fetched keys inside this object and
-    // refreshes them when it sees an unknown key id.
-    const keySet = options.keySet
-        || createRemoteJWKSet(new URL(`https://${config.cfTeamDomain}/cdn-cgi/access/certs`));
-    const context = {
-        keySet,
-        issuer: `https://${config.cfTeamDomain}`,
-        audience: config.cfAudience,
-        logger,
-    };
+    async authenticate(headers) {
+        const token = readCloudflareToken(headers, parseCookies(headers.cookie));
+        if (!token) {
+            return null;
+        }
+        return this.#verify(token);
+    }
 
-    return {
-        mode: 'cloudflare',
-        async authenticate(headers) {
-            const token = readCloudflareToken(headers, parseCookies(headers.cookie));
-            if (!token) {
+    async #verify(token) {
+        try {
+            const { payload } = await jwtVerify(token, this.#keySet, {
+                issuer: this.#issuer,
+                audience: this.#audience,
+            });
+            const email = normaliseEmail(payload.email);
+            if (!email) {
                 return null;
             }
-            return verifyCloudflareToken(context, token);
-        },
-    };
+            return { email, full_name: normaliseName(payload.name) };
+        } catch (error) {
+            this.#logger.warn(`Rejected Cloudflare Access token: ${error.code || error.message}`);
+            return null;
+        }
+    }
+}
+
+/**
+ * The authenticator for the configured AUTH_MODE (`config` is loadConfig()'s result). AuthProvider
+ * builds the server's through it, and auth.test calls it directly. `options.keySet` replaces the
+ * remote Cloudflare JWKS (tests) and `options.logger` defaults to console.
+ */
+export function createAuthenticator(config, options = {}) {
+    if (config.authMode === 'dev') {
+        return new DevSessionAuthenticator({ sessionSecret: config.sessionSecret });
+    }
+
+    return new CloudflareAuthenticator({
+        teamDomain: config.cfTeamDomain,
+        audience: config.cfAudience,
+        keySet: options.keySet,
+        logger: options.logger || console,
+    });
 }
