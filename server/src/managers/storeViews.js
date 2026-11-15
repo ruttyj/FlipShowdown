@@ -2,22 +2,23 @@
 // RoomRepository's (get) and PlayerRepository's (listByRoom, listByUserEmail, update).
 
 /**
- * GameRoom and Player access over the store. It goes through the store facade at call time, not
- * store.repositories, because some tests wrap facade methods on a running server (see
- * docs/testing.md): entryStatus.test counts store.findRecords lookups.
+ * GameRoom and Player access over the store's repositories. The one exception is
+ * players.listByRoom, which goes through the store facade at call time: entryStatus.test counts
+ * store.findRecords lookups on a running server (see docs/testing.md).
  *
  * @returns {{ rooms: { get(roomId) }, players: { listByRoom(roomId), listByUserEmail(email),
  *   update(playerId, changes) } }}
  */
 export function createStoreViews(store) {
+    const { rooms, players } = store.repositories;
     return {
         rooms: {
-            get: (roomId) => store.getRecord('GameRoom', roomId),
+            get: (roomId) => rooms.get(roomId),
         },
         players: {
             listByRoom: (roomId) => store.findRecords('Player', 'room_id', roomId),
-            listByUserEmail: (email) => store.findRecordsByEmail('Player', email),
-            update: (playerId, changes) => store.updateRecord('Player', playerId, changes),
+            listByUserEmail: (email) => players.listByUserEmail(email),
+            update: (playerId, changes) => players.update(playerId, changes),
         },
     };
 }

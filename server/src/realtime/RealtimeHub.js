@@ -38,7 +38,7 @@ export class RealtimeHub {
      * Builds the managers and the socket edge and starts the connection timers. Options:
      *   authenticate(headers) - resolves to { email, ... } or null; unauthenticated upgrades get a
      *     401 and never reach ws
-     *   store - the db.js store (event log, GameRoom and Player records)
+     *   store - the db.js store (its repositories: event log, GameRoom and Player records)
      *   isAdmin(identity) - whether the identity may subscribe to "*"
      *   logger - console-like
      *   clock - the Clock every manager reads (presence liveness, vote countdowns, entry windows)
@@ -180,7 +180,7 @@ export class RealtimeHub {
         });
         this.#subscriptions = new SubscriptionManager({ connections: this.#connections, players, isAdmin });
         this.#publisher = new EventPublisher({
-            eventLog: store.eventLog,
+            eventLog: store.repositories.events,
             connections: this.#connections,
             subscriptions: this.#subscriptions,
             lifecycle: this.#lifecycle,

@@ -1,5 +1,6 @@
 import { CHAT_MESSAGE, PLAYER, ROOM, ROUND_SCORE } from '../domain/entities.js';
 import { isPlainObject, matchesFilter, paginate, sortEntries } from '../lib/query.js';
+import { EntityGateway } from '../repositories/EntityGateway.js';
 
 // The generic entity API behind /api/entities: who may reach which records while
 // LOCK_GAME_ENTITIES is on, the reads and writes themselves, and the realtime events a write sends.
@@ -10,13 +11,17 @@ const LOCKED_WRITE_ENTITIES = new Set([ROOM, PLAYER, ROUND_SCORE]);
 
 export class EntityService {
     /**
-     * `store` is the db.js store and `hub` the realtime hub; both are called through these objects
-     * at call time, so a test that replaces one of their methods reaches this code too.
+     * `store` is the db.js store. Reads and writes go through its repositories (an EntityGateway
+     * over them), except create (see there). `hub` is the realtime hub, called through the object
+     * at call time, so a test that replaces one of its methods reaches this code too.
      * `entityNames` is the Set of entity names the API serves. `lockGameEntities` is the
      * LOCK_GAME_ENTITIES flag and `adminEmails` the Set of addresses it doesn't apply to.
      */
     constructor({ store, hub, entityNames, lockGameEntities, adminEmails }) {
         this.store = store;
+        this.rooms = store.repositories.rooms;
+        this.players = store.repositories.players;
+        this.entities = new EntityGateway(store.database, store.repositories);
         this.hub = hub;
         this.entityNames = entityNames;
         this.lockGameEntities = lockGameEntities;
@@ -48,7 +53,7 @@ export class EntityService {
             return null;
         }
 
-        const players = this.store.findRecords(PLAYER, 'room_id', roomId);
+        const players = this.players.listByRoom(roomId);
         return players.find((player) => player.email === email) || null;
     }
 
@@ -62,7 +67,7 @@ export class EntityService {
             return false;
         }
 
-        const rooms = this.store.findRecords(ROOM, 'code', code);
+        const rooms = this.rooms.findByCode(code);
         if (rooms.length === 0) {
             return false;
         }
@@ -105,7 +110,7 @@ export class EntityService {
             return this.#isRoomMember(id, user.email);
         }
 
-        const record = this.store.getRecord(entityName, id);
+        const record = this.entities.get(entityName, id);
         if (!record) {
             // The route answers 404.
             return true;
@@ -187,7 +192,7 @@ export class EntityService {
     /** One page of records matching `query` (parsed by parseListQuery: filter, sort, skip, limit). */
     list(entityName, query) {
         const matching = [];
-        for (const entry of this.store.listRecords(entityName)) {
+        for (const entry of this.entities.list(entityName)) {
             if (matchesFilter(entry.record, query.filter)) {
                 matching.push(entry);
             }
@@ -200,11 +205,13 @@ export class EntityService {
 
     /** The record, or null. */
     get(entityName, id) {
-        return this.store.getRecord(entityName, id);
+        return this.entities.get(entityName, id);
     }
 
     /** Creates every item or none, then publishes each new record; returns the records. */
     create(entityName, items, createdBy) {
+        // Through the store facade, not this.entities.insertMany: coverageGaps.test replaces
+        // store.createRecords on a running server to make a write fail with a plain Error.
         const records = this.store.createRecords(entityName, items, createdBy);
         for (const record of records) {
             this.hub.publish(entityName, 'create', record);
@@ -215,8 +222,8 @@ export class EntityService {
 
     /** The updated record (published), or null when there is no such record. */
     update(entityName, id, changes) {
-        const before = this.store.getRecord(entityName, id);
-        const record = this.store.updateRecord(entityName, id, changes);
+        const before = this.entities.get(entityName, id);
+        const record = this.entities.update(entityName, id, changes);
         if (!record) {
             return null;
         }
@@ -228,7 +235,7 @@ export class EntityService {
 
     /** Deletes the record and returns it as it was (published), or null when there was none. */
     remove(entityName, id) {
-        const deleted = this.store.deleteRecord(entityName, id);
+        const deleted = this.entities.delete(entityName, id);
         if (!deleted) {
             return null;
         }

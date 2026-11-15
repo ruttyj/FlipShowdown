@@ -243,8 +243,8 @@ export class RoomUnitOfWork {
     /** Makes the room with this id the action's room, or throws a 404 `room_not_found`. */
     loadRoom(roomId) {
         // Read through the store facade rather than RoomRepository: staleRooms.test makes one
-        // room fail to load by replacing store.getRecord. Move to this.#rooms.get when the tests
-        // stop using the facade (P6.1).
+        // room fail to load by replacing store.getRecord. Move to this.#rooms.get once that test
+        // stops patching the facade.
         const room = this.store.getRecord(ROOM, roomId);
         if (!room) {
             throw new ActionError(404, 'room_not_found', 'Room not found');

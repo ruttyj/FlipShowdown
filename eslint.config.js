@@ -48,6 +48,15 @@ const DATA_IMPORTS = {
   message: "The base layer may not import data (repositories, database).",
 };
 
+// The store facade (database/db.js: openStore, openDatabase) is the tests' API. Production code
+// reads and writes through the repositories, which DatabaseProvider hands out; only providers/
+// (which opens the store) and database/ itself may import db.js. database/'s own files import it
+// as "./db.js", which this doesn't match.
+const STORE_FACADE_IMPORTS = {
+  regex: "(^|/)database/db\\.js$",
+  message: "Only providers/ may import the store facade (database/db.js); use the repositories.",
+};
+
 // domain/ imports nothing from server/src. One "../" leaves domain/ for server/src; the
 // repo's shared/ folder ("../../../shared/...") is outside server/src and stays allowed.
 const OUTSIDE_DOMAIN_IMPORTS = {
@@ -207,6 +216,13 @@ export default [
     files: ["server/src/**/*.js"],
     ignores: ["server/src/gameActions/**"],
     rules: {
+      "no-restricted-imports": banImports(GAME_ACTIONS_IMPORTS, STORE_FACADE_IMPORTS),
+    },
+  },
+  {
+    // Compose: providers/ opens the store (DatabaseProvider), so it alone may import db.js.
+    files: ["server/src/providers/**/*.js"],
+    rules: {
       "no-restricted-imports": banImports(GAME_ACTIONS_IMPORTS),
     },
   },
@@ -214,28 +230,38 @@ export default [
     // Entry.
     files: ["server/src/http/**/*.js", "server/src/realtime/**/*.js"],
     rules: {
-      "no-restricted-imports": banImports(COMPOSE_IMPORTS, GAME_ACTIONS_IMPORTS),
+      "no-restricted-imports": banImports(COMPOSE_IMPORTS, GAME_ACTIONS_IMPORTS, STORE_FACADE_IMPORTS),
     },
   },
   {
     // Handlers.
     files: ["server/src/actions/**/*.js"],
     rules: {
-      "no-restricted-imports": banImports(COMPOSE_IMPORTS, ENTRY_IMPORTS, GAME_ACTIONS_IMPORTS),
+      "no-restricted-imports": banImports(
+        COMPOSE_IMPORTS,
+        ENTRY_IMPORTS,
+        GAME_ACTIONS_IMPORTS,
+        STORE_FACADE_IMPORTS,
+      ),
     },
   },
   {
     // The test-facing adapters wrap the handlers and services, but not the entry layer.
     files: ["server/src/gameActions/**/*.js"],
     rules: {
-      "no-restricted-imports": banImports(COMPOSE_IMPORTS, ENTRY_IMPORTS),
+      "no-restricted-imports": banImports(COMPOSE_IMPORTS, ENTRY_IMPORTS, STORE_FACADE_IMPORTS),
     },
   },
   {
     // Logic. Managers may import services: they share a layer.
     files: ["server/src/services/**/*.js", "server/src/managers/**/*.js"],
     rules: {
-      "no-restricted-imports": banImports(COMPOSE_IMPORTS, ENTRY_IMPORTS, HANDLER_IMPORTS),
+      "no-restricted-imports": banImports(
+        COMPOSE_IMPORTS,
+        ENTRY_IMPORTS,
+        HANDLER_IMPORTS,
+        STORE_FACADE_IMPORTS,
+      ),
     },
   },
   {
@@ -247,6 +273,7 @@ export default [
         ENTRY_IMPORTS,
         HANDLER_IMPORTS,
         LOGIC_IMPORTS,
+        STORE_FACADE_IMPORTS,
       ),
     },
   },

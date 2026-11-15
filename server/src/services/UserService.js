@@ -5,33 +5,34 @@ import { createSessionToken, normaliseEmail, normaliseName } from './auth.js';
 
 export class UserService {
     /**
-     * `store` is the db.js store (its user functions are read at call time), `adminEmails` the Set
-     * of admin addresses and `sessionSecret` the key dev session cookies are signed with.
+     * `store` is the db.js store, of which only its UserRepository (`store.repositories.users`) is
+     * used. `adminEmails` is the Set of admin addresses and `sessionSecret` the key dev session
+     * cookies are signed with.
      */
     constructor({ store, adminEmails, sessionSecret }) {
-        this.store = store;
+        this.userRepository = store.repositories.users;
         this.adminEmails = adminEmails;
         this.sessionSecret = sessionSecret;
     }
 
     /** The users row for a verified identity ({ email, full_name }), created on first sight. */
     findOrCreate(identity) {
-        const user = this.store.findUserByEmail(identity.email);
+        const user = this.userRepository.findByEmail(identity.email);
         if (user) {
             return user;
         }
-        return this.store.upsertUser(identity.email, identity.full_name);
+        return this.userRepository.upsert(identity.email, identity.full_name);
     }
 
     /**
      * The user after setting their name to `fullName` (trimmed and capped; empty clears it), or
-     * unchanged when `fullName` is undefined.
+     * unchanged when `fullName` is undefined. Null when there is no such user.
      */
     rename(user, fullName) {
         if (fullName === undefined) {
             return user;
         }
-        return this.store.setUserName(user.email, normaliseName(fullName));
+        return this.userRepository.setName(user.email, normaliseName(fullName));
     }
 
     /**
@@ -46,7 +47,7 @@ export class UserService {
             return null;
         }
 
-        const user = this.store.upsertUser(normalisedEmail, normaliseName(fullName));
+        const user = this.userRepository.upsert(normalisedEmail, normaliseName(fullName));
         return createSessionToken(this.sessionSecret, { email: normalisedEmail, full_name: user.full_name });
     }
 
