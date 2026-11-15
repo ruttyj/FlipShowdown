@@ -1,15 +1,16 @@
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, test } from 'node:test';
 import { createActionRegistry, createServices } from '../../src/actions/createGameActions.js';
-import { RoomUnitOfWork } from '../../src/actions/RoomUnitOfWork.js';
 import { ACTIONS } from '../../src/gameActions/index.js';
+import { runRoomAction, storeOfWork } from '../../src/gameActions/roomTx.js';
 import { createRoom, lookupRoomByCode } from '../../src/gameActions/rooms.js';
 import { createVoteTopics } from '../../src/gameActions/voteTopics.js';
-import { GUEST, HOST, OUTSIDER, openTempStore, seedRoom } from './roomFixture.js';
+import { createUnitOfWork, GUEST, HOST, OUTSIDER, openTempStore, seedRoom } from './roomFixture.js';
 
 // The test-facing adapters in gameActions/ that the other tests and the root test fixture
 // (tests/fixtures/serverRoom.js) import: each must run the real handler on the real store. The
-// unit of work and runRoomAction adapters are exercised by coverageGaps.test and rooms.test.
+// unit of work and runRoomAction adapters are exercised by coverageGaps.test and rooms.test; the
+// action objects and createRoom run here inside runRoomAction, as the root test fixture runs them.
 
 const ACTION_NAMES = [
     'set-game-mode', 'start', 'close', 'delete',
@@ -40,13 +41,27 @@ describe('gameActions adapters', () => {
         temp.close();
     });
 
-    /** A unit of work for `user`, with the seeded room loaded unless `loadRoom` is false. */
-    function workFor(user, { loadRoom = true } = {}) {
-        const work = new RoomUnitOfWork({ repositories: store.repositories, store, user, isAdmin: false });
-        if (loadRoom) {
-            work.loadRoom(seeded.room.id);
-        }
-        return work;
+    function adapterContext() {
+        return { store, hub: SILENT_HUB, config: { adminEmails: new Set() }, logger: console };
+    }
+
+    /**
+     * Runs `act(work)` through runRoomAction as `user`, on the seeded room unless `roomId` says
+     * otherwise (null for none), with no access or status check. Returns { work, returned }:
+     * the unit of work after commit and what `act` returned.
+     */
+    function runInWork(user, act, { roomId = seeded.room.id } = {}) {
+        let work = null;
+        let returned;
+        const request = { user, roomId, access: 'signed_in', allowedStatuses: null };
+        const result = runRoomAction(adapterContext(), request, (tx) => {
+            work = tx;
+            returned = act(tx);
+            return returned;
+        });
+
+        assert.equal(result.status, 200);
+        return { work, returned };
     }
 
     // --- ACTIONS ---------------------------------------------------------
@@ -63,9 +78,7 @@ describe('gameActions adapters', () => {
     });
 
     test('an action object runs its own handler and returns what it returns', () => {
-        const work = workFor(OUTSIDER);
-
-        const joined = ACTIONS.join.run(work, { name: 'Otto' });
+        const { returned: joined } = runInWork(OUTSIDER, (work) => ACTIONS.join.run(work, { name: 'Otto' }));
 
         assert.equal(joined.already_joined, false);
         assert.equal(joined.player.email, OUTSIDER.email);
@@ -73,13 +86,13 @@ describe('gameActions adapters', () => {
     });
 
     test('room, player and scoring action objects all reach their services', () => {
-        const work = workFor(HOST);
-
-        ACTIONS['set-game-mode'].run(work, { game_mode: 'vengeance' });
-        ACTIONS['make-host'].run(work, { player_id: seeded.guest.id });
-        ACTIONS.start.run(work, {});
-        ACTIONS['end-game'].run(work, {});
-        ACTIONS['play-again'].run(work, {});
+        const { work } = runInWork(HOST, (tx) => {
+            ACTIONS['set-game-mode'].run(tx, { game_mode: 'vengeance' });
+            ACTIONS['make-host'].run(tx, { player_id: seeded.guest.id });
+            ACTIONS.start.run(tx, {});
+            ACTIONS['end-game'].run(tx, {});
+            ACTIONS['play-again'].run(tx, {});
+        });
 
         assert.equal(work.room.game_mode, 'vengeance');
         assert.equal(work.room.host_player_id, seeded.guest.id);
@@ -90,9 +103,8 @@ describe('gameActions adapters', () => {
     // --- Rooms -----------------------------------------------------------
 
     test('createRoom parses the body and creates the room', () => {
-        const work = workFor(GUEST, { loadRoom: false });
-
-        const { player } = createRoom(work, { max_score: 120, name: 'Gus' });
+        const { work, returned } = runInWork(GUEST, (tx) => createRoom(tx, { max_score: 120, name: 'Gus' }), { roomId: null });
+        const { player } = returned;
 
         assert.equal(work.room.max_score, 120);
         assert.equal(work.room.game_mode, 'classic');
@@ -112,11 +124,19 @@ describe('gameActions adapters', () => {
         });
     });
 
+    test('the action objects and createRoom refuse a unit of work runRoomAction is not running', () => {
+        const work = createUnitOfWork(store, HOST);
+        work.loadRoom(seeded.room.id);
+
+        assert.equal(storeOfWork(runInWork(HOST, () => {}).work), store);
+        assert.throws(() => ACTIONS.start.run(work, {}), /needs a unit of work from runRoomAction/);
+        assert.throws(() => createRoom(work, { max_score: 120 }), /needs a unit of work from runRoomAction/);
+    });
+
     // --- Vote topics -----------------------------------------------------
 
     test('createVoteTopics resolves make-host through a runner on the context', () => {
-        const context = { store, hub: SILENT_HUB, config: { adminEmails: new Set() }, logger: console };
-        const topic = createVoteTopics(context)['make-host'];
+        const topic = createVoteTopics(adapterContext())['make-host'];
 
         const result = topic.resolve(seeded.room.id, seeded.guest.id);
 

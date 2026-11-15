@@ -134,16 +134,6 @@ describe('EventRepository', () => {
         assert.equal(events.lastSeq, 5);
     });
 
-    test('trim with no argument counts back from lastSeq', () => {
-        const generous = new EventRepository(database, { maxEvents: 10 });
-        generous.appendAll([entry('r1'), entry('r1'), entry('r1'), entry('r1')]);
-
-        const strict = new EventRepository(database, { maxEvents: 2 });
-        strict.trim();
-
-        assert.deepEqual(storedSeqs(database), [3, 4]);
-    });
-
     test('trim with a seq counts back from that seq', () => {
         const events = new EventRepository(database, { maxEvents: 10 });
         events.appendAll([entry('r1'), entry('r1'), entry('r1'), entry('r1')]);

@@ -2,9 +2,6 @@ import { OPEN_STATUSES, PLAYER, ROUND_SCORE } from '../domain/entities.js';
 import { ActionError, badRequest } from '../domain/errors.js';
 import { isHostPlayer } from '../domain/players.js';
 
-// Re-exported for the tests that import it from here; it lives in domain/players.js.
-export { isHostPlayer };
-
 // The player rules: joining, leaving, kicking, hosting, turn order and the seats the room's
 // players sit in. Stateless: every method takes the action's RoomUnitOfWork (`work`, with its
 // room loaded) and arguments the action handler has already parsed.

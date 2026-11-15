@@ -61,7 +61,6 @@ export async function serveApp(configure) {
     const app = express();
     configure(app);
     // Express recognises error handlers by their four parameters.
-    // eslint-disable-next-line no-unused-vars
     app.use((error, req, res, next) => {
         res.status(500).json({ message: error.message });
     });

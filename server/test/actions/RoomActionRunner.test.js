@@ -64,7 +64,7 @@ describe('RoomActionRunner', () => {
         runner = new RoomActionRunner({
             database: store.database,
             repositories: store.repositories,
-            store,
+            readRoom: (roomId) => store.repositories.rooms.get(roomId),
             accessPolicy: new AccessPolicy(),
             adminEmails: new Set(['admin@example.com']),
             getHub: () => hub,

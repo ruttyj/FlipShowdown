@@ -5,7 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, test } from 'node:test';
 import { Database } from '../src/database/Database.js';
-import { ENTITY_TABLES, StoreError } from '../src/database/entityTables.js';
+import { ENTITY_TABLES } from '../src/database/entityTables.js';
+import { StoreError } from '../src/domain/errors.js';
 import { TableRepository } from '../src/repositories/TableRepository.js';
 
 // TableRepository: CRUD on one typed table, with records in the same shape the store has always

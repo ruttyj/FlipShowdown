@@ -1,10 +1,11 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { RoomUnitOfWork } from '../../src/actions/RoomUnitOfWork.js';
 import { openStore } from '../../src/database/db.js';
 
 // Shared setup for the actions/ unit tests (this file contains no tests of its own): a real store
-// in a temp folder, and a seeded room.
+// in a temp folder, a seeded room and units of work on the store.
 
 export const HOST = { email: 'host@example.com' };
 export const GUEST = { email: 'guest@example.com' };
@@ -22,6 +23,16 @@ export function openTempStore() {
             fs.rmSync(dir, { recursive: true, force: true });
         },
     };
+}
+
+/** A RoomUnitOfWork on `store` for `user`, loading rooms through the store's RoomRepository. */
+export function createUnitOfWork(store, user, isAdmin = false) {
+    return new RoomUnitOfWork({
+        repositories: store.repositories,
+        readRoom: (roomId) => store.repositories.rooms.get(roomId),
+        user,
+        isAdmin,
+    });
 }
 
 /**

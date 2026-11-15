@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, test } from 'node:test';
 import { Database } from '../../src/database/Database.js';
-import { StoreError } from '../../src/database/entityTables.js';
+import { StoreError } from '../../src/domain/errors.js';
 import { ChatMessageRepository } from '../../src/repositories/ChatMessageRepository.js';
 import { EntityGateway } from '../../src/repositories/EntityGateway.js';
 import { PlayerRepository } from '../../src/repositories/PlayerRepository.js';

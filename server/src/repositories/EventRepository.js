@@ -110,10 +110,10 @@ export class EventRepository {
     }
 
     /**
-     * Deletes every event older than the newest `maxEvents`, counting back from `newestSeq`
-     * (by default the newest appended). appendAll calls it, so the log never grows past its limit.
+     * Deletes every event older than the newest `maxEvents`, counting back from `newestSeq`.
+     * appendAll calls it, so the log never grows past its limit.
      */
-    trim(newestSeq = this.lastSeqValue) {
+    trim(newestSeq) {
         this.statements.deleteUpTo.run(newestSeq - this.maxEvents);
     }
 

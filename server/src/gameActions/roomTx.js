@@ -1,4 +1,4 @@
-import { createRoomActionRunner } from '../actions/createGameActions.js';
+import { buildRoomActionRunner } from '../actions/createGameActions.js';
 
 // gameActions/ holds only test-facing adapters: the old function API that tests and the root test
 // fixture import by path, each a thin wrapper over the classes in actions/ and services/.
@@ -28,7 +28,36 @@ export function listPlayers(tx) {
     return tx.listPlayers();
 }
 
+// --- The store a unit of work writes to --------------------------------------
+// The old action API passes only `tx` (ACTIONS[name].run(tx, body), createRoom(tx, body)), but
+// the handlers' services need the store's repositories, which a RoomUnitOfWork doesn't expose.
+// runRoomAction records the store of each unit of work it runs, and those adapters look it up.
+
+const storesByWork = new WeakMap();
+
+/** The store `tx` writes to. Throws unless `tx` is a unit of work runRoomAction is running. */
+export function storeOfWork(tx) {
+    const store = storesByWork.get(tx);
+    if (!store) {
+        throw new Error('This adapter needs a unit of work from runRoomAction');
+    }
+    return store;
+}
+
 // --- Running an action -------------------------------------------------------
+
+/**
+ * A RoomActionRunner for the adapters' context ({ store, hub, config, logger }). The hub is read
+ * from the context each time the runner publishes, so a test may set or replace it later.
+ */
+export function createRoomActionRunner(context) {
+    return buildRoomActionRunner({
+        store: context.store,
+        adminEmails: context.config.adminEmails,
+        getHub: () => context.hub,
+        logger: context.logger,
+    });
+}
 
 /**
  * Runs one game action (see RoomActionRunner#run). `request` is { user, roomId, access,
@@ -39,7 +68,10 @@ export function runRoomAction(context, request, body) {
     const handler = {
         access: request.access,
         allowedStatuses: request.allowedStatuses,
-        handle: (tx) => body(tx),
+        handle: (tx) => {
+            storesByWork.set(tx, context.store);
+            return body(tx);
+        },
     };
     return createRoomActionRunner(context).run(handler, { user: request.user, roomId: request.roomId });
 }

@@ -1,8 +1,7 @@
 import assert from 'node:assert/strict';
-import { RoomUnitOfWork } from '../../src/actions/RoomUnitOfWork.js';
 import { PLAYER, ROOM, ROUND_SCORE } from '../../src/domain/entities.js';
 import { ActionError } from '../../src/domain/errors.js';
-import { openTempStore, seedRoom } from '../actions/roomFixture.js';
+import { createUnitOfWork, openTempStore, seedRoom } from '../actions/roomFixture.js';
 
 // Shared setup for the services/ unit tests (this file contains no tests of its own): a room on a
 // real store, units of work on it, and helpers to read and seed its records.
@@ -64,7 +63,7 @@ export function openRoom(roomFields = {}) {
 
         /** A RoomUnitOfWork for `user` with the room loaded. */
         workFor(user, { isAdmin = false } = {}) {
-            const work = new RoomUnitOfWork({ repositories: store.repositories, store, user, isAdmin });
+            const work = createUnitOfWork(store, user, isAdmin);
             work.loadRoom(roomId);
             return work;
         },

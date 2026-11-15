@@ -1,9 +1,8 @@
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, test } from 'node:test';
-import { RoomUnitOfWork } from '../../src/actions/RoomUnitOfWork.js';
 import { ActionError } from '../../src/domain/errors.js';
 import { RoomService, randomRoomCode, requireGameMode } from '../../src/services/RoomService.js';
-import { GUEST, HOST, OUTSIDER, openTempStore, seedRoom } from '../actions/roomFixture.js';
+import { createUnitOfWork, GUEST, HOST, OUTSIDER, openTempStore, seedRoom } from '../actions/roomFixture.js';
 
 // RoomService on a real store, through a RoomUnitOfWork with no transaction around it
 // (RoomActionRunner adds that). The seeded room is `waiting`, code ABCDEF, hosted by HOST, with
@@ -63,7 +62,7 @@ describe('RoomService', () => {
     }
 
     function workFor(user) {
-        return new RoomUnitOfWork({ repositories: store.repositories, store, user, isAdmin: false });
+        return createUnitOfWork(store, user);
     }
 
     /** A unit of work for `user` with the seeded room loaded. */

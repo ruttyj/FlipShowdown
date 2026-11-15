@@ -1,9 +1,9 @@
-import { createRoomActionRunner } from '../actions/createGameActions.js';
 import { MakeHostAction } from '../actions/players/MakeHostAction.js';
 import { createVoteTopics as createTopicsForRunner } from '../actions/VoteTopics.js';
 import { PlayerService } from '../services/PlayerService.js';
 import { RoundService } from '../services/RoundService.js';
 import { TotalsService } from '../services/TotalsService.js';
+import { createRoomActionRunner } from './roomTx.js';
 
 // Test-facing adapter (see roomTx.js): the old createVoteTopics(context), over
 // actions/VoteTopics.js, for coverageGaps.test.

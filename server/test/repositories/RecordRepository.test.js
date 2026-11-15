@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, test } from 'node:test';
 import { Database } from '../../src/database/Database.js';
-import { StoreError } from '../../src/database/entityTables.js';
+import { StoreError } from '../../src/domain/errors.js';
 import { RecordRepository } from '../../src/repositories/RecordRepository.js';
 
 // RecordRepository: the generic `records` table, one JSON row per record, keyed by entity name.

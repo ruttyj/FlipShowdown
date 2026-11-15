@@ -4,7 +4,7 @@
 
 /**
  * A write the database refused, or a value of the wrong type. `status` is 400 (`invalid_record`)
- * or 409 (`conflict`); the routes answer with `toBody()`.
+ * or 409 (`conflict`); the error handler and the action runner answer with `toBody()`.
  */
 export class StoreError extends Error {
     constructor(status, code, message) {

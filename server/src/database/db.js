@@ -8,8 +8,10 @@ import { RoundScoreRepository } from '../repositories/RoundScoreRepository.js';
 import { UserRepository } from '../repositories/UserRepository.js';
 import { Database } from './Database.js';
 
-// The store: the record-shaped API the routes and tests have always used, as a thin facade over
-// Database and the repositories. Every method delegates; the SQL lives in the repositories.
+// The store: a record-shaped facade over Database and the repositories, which DatabaseProvider
+// opens and the tests use. Every method delegates; the SQL lives in the repositories. Production
+// parts take the repositories; the few facade calls they still make are the ones tests pin (see
+// docs/testing.md).
 
 /**
  * Opens the database (see Database.open) and returns its raw better-sqlite3 connection, with
@@ -47,8 +49,8 @@ function createRepositories(database, eventLogLimit) {
  * Writes the database refuses throw a StoreError (400 or 409).
  * `eventLogLimit` overrides how many realtime events are kept (tests).
  *
- * `database` and `repositories` expose what the store is built on, for the code that replaces
- * the store in later steps.
+ * `database` and `repositories` expose what the store is built on; DatabaseProvider hands them
+ * to the production parts.
  */
 export function openStore(dataDir, { eventLogLimit } = {}) {
     const database = Database.open(dataDir);

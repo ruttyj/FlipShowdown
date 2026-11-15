@@ -1,8 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, test } from 'node:test';
-import { RoomUnitOfWork } from '../../src/actions/RoomUnitOfWork.js';
 import { ActionError } from '../../src/domain/errors.js';
-import { GUEST, HOST, OUTSIDER, openTempStore, seedRoom } from './roomFixture.js';
+import { createUnitOfWork, GUEST, HOST, OUTSIDER, openTempStore, seedRoom } from './roomFixture.js';
 
 // RoomUnitOfWork on a real store: the writes it makes, the events it queues and how it merges
 // them, and the room's version bump. Each test runs outside a transaction, which is fine for a
@@ -42,7 +41,7 @@ describe('RoomUnitOfWork', () => {
     });
 
     function workFor(user, { isAdmin = false } = {}) {
-        return new RoomUnitOfWork({ repositories: store.repositories, store, user, isAdmin });
+        return createUnitOfWork(store, user, isAdmin);
     }
 
     /** A unit of work for HOST with the seeded room loaded. */
@@ -54,12 +53,11 @@ describe('RoomUnitOfWork', () => {
 
     // --- Loading and reading ---------------------------------------------
 
-    test('keeps the caller, the admin flag and the store it was given', () => {
+    test('keeps the caller and the admin flag it was given', () => {
         const work = workFor(GUEST, { isAdmin: true });
 
         assert.equal(work.user, GUEST);
         assert.equal(work.isAdmin, true);
-        assert.equal(work.store, store);
         assert.equal(work.room, null);
         assert.deepEqual(work.events, []);
     });

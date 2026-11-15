@@ -11,7 +11,8 @@ import { SchedulerProvider } from './SchedulerProvider.js';
 /**
  * The server's providers, in order. Parts are built lazily, so the order doesn't matter for
  * registering; it sets the boot order and, reversed, the shutdown order:
- *   boot     - the launcher's 'listening' listener before the sweep's (as before)
+ *   boot     - the launcher's 'listening' listener before the sweep's, so the launcher's first
+ *              report goes out before the first sweep starts
  *   shutdown - stop the sweep, close the launcher reporter, close the realtime hub, close the
  *              HTTP server (waiting for in-flight requests), then close the database
  */

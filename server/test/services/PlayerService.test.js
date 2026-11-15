@@ -1,16 +1,15 @@
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, test } from 'node:test';
-import { RoomUnitOfWork } from '../../src/actions/RoomUnitOfWork.js';
 import { ActionError } from '../../src/domain/errors.js';
+import { isHostPlayer } from '../../src/domain/players.js';
 import {
     PlayerService,
-    isHostPlayer,
     isTurnPassed,
     newPlayerFields,
     nextPlayerAfter,
 } from '../../src/services/PlayerService.js';
 import { RoundService } from '../../src/services/RoundService.js';
-import { GUEST, HOST, OUTSIDER, openTempStore, seedRoom } from '../actions/roomFixture.js';
+import { createUnitOfWork, GUEST, HOST, OUTSIDER, openTempStore, seedRoom } from '../actions/roomFixture.js';
 
 // PlayerService on a real store through a RoomUnitOfWork. The round check and the totals rule it
 // calls are recording stubs, so each test sees exactly which round checks and recomputes it asked
@@ -117,7 +116,7 @@ describe('PlayerService', () => {
 
     /** A unit of work for `user` with `roomId` (the seeded room by default) loaded. */
     function workFor(user, roomId = seeded.room.id) {
-        const work = new RoomUnitOfWork({ repositories: store.repositories, store, user, isAdmin: false });
+        const work = createUnitOfWork(store, user);
         work.loadRoom(roomId);
         return work;
     }

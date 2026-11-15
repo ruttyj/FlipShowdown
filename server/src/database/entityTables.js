@@ -12,7 +12,7 @@ import { normaliseEmail } from '../lib/email.js';
 
 // --- Errors ------------------------------------------------------------------
 
-// StoreError moved to domain/errors.js; re-exported so existing importers keep working.
+// StoreError lives in domain/errors.js; re-exported for store.test, which imports it from here.
 export { StoreError };
 
 function invalidRecord(message) {

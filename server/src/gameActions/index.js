@@ -1,4 +1,5 @@
 import { createActionRegistry, createGameHandlers, createServices } from '../actions/createGameActions.js';
+import { storeOfWork } from './roomTx.js';
 
 // Test-facing adapter (see roomTx.js): every game action as the old
 // `{ access, allowedStatuses, run(tx, body) }` object, by name, for the root test fixture
@@ -7,15 +8,15 @@ import { createActionRegistry, createGameHandlers, createServices } from '../act
 /**
  * The old action object for `declaration`, a handler read only for its name, access and statuses.
  * Handlers hold their services, and RoomService needs the store's repositories, so `run` builds
- * them on the store that `tx` (a RoomUnitOfWork) writes to. Services are stateless, so building
- * them per call behaves as building them once.
+ * them on the store that `tx` (a RoomUnitOfWork from runRoomAction) writes to. Services are
+ * stateless, so building them per call behaves as building them once.
  */
 function toActionObject(declaration) {
     return {
         access: declaration.access,
         allowedStatuses: declaration.allowedStatuses,
         run(tx, body) {
-            const registry = createActionRegistry(createServices(tx.store.repositories));
+            const registry = createActionRegistry(createServices(storeOfWork(tx).repositories));
             return registry.get(declaration.name).handle(tx, body);
         },
     };

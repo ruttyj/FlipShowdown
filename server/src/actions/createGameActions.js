@@ -1,3 +1,4 @@
+import { ROOM } from '../domain/entities.js';
 import { PlayerService } from '../services/PlayerService.js';
 import { RoomService } from '../services/RoomService.js';
 import { RoundService } from '../services/RoundService.js';
@@ -53,32 +54,21 @@ export function createActionRegistry(services) {
 }
 
 /**
- * The RoomActionRunner over `store`: its database and repositories, a fresh AccessPolicy and
- * `adminEmails` (a Set of lower-case emails). `getHub()` returns the realtime hub when the runner
- * publishes; it is a function so the hub can be built after the runner (its vote topics need it).
- * The one place a runner is wired, so the server and the adapters can't drift apart.
+ * The RoomActionRunner over `store` (the db.js store): its database and repositories, a fresh
+ * AccessPolicy and `adminEmails` (a Set of lower-case emails). Rooms are loaded through the
+ * store facade's getRecord, looked up at call time: staleRooms.test replaces it on a running
+ * server. `getHub()` returns the realtime hub when the runner publishes; it is a function so the
+ * hub can be built after the runner (its vote topics need it). The one place a runner is wired,
+ * so the server and the test-facing adapters in gameActions/ can't drift apart.
  */
 export function buildRoomActionRunner({ store, adminEmails, getHub, logger }) {
     return new RoomActionRunner({
         database: store.database,
         repositories: store.repositories,
-        store,
+        readRoom: (roomId) => store.getRecord(ROOM, roomId),
         accessPolicy: new AccessPolicy(),
         adminEmails,
         getHub,
         logger,
-    });
-}
-
-/**
- * A RoomActionRunner for the adapters' context ({ store, hub, config, logger }). The hub is read
- * from the context each time the runner publishes, so a test may set or replace it later.
- */
-export function createRoomActionRunner(context) {
-    return buildRoomActionRunner({
-        store: context.store,
-        adminEmails: context.config.adminEmails,
-        getHub: () => context.hub,
-        logger: context.logger,
     });
 }

@@ -8,18 +8,18 @@ import { RoomUnitOfWork } from './RoomUnitOfWork.js';
 
 export class RoomActionRunner {
     /**
-     * `database` is the Database the transaction runs on and `repositories` the store's
-     * repositories, both for the units of work. `store` is the store facade, which a unit of work
-     * still exposes as `store` (see RoomUnitOfWork). `accessPolicy` is an AccessPolicy,
-     * `adminEmails` the Set of admin emails and `logger` a console-like object.
+     * `database` is the Database the transaction runs on. `repositories` (the store's
+     * repositories) and `readRoom(roomId)` are passed to each RoomUnitOfWork (see there).
+     * `accessPolicy` is an AccessPolicy, `adminEmails` the Set of admin emails and `logger` a
+     * console-like object.
      * `getHub()` returns the realtime hub. It is a function because the hub's vote topics need
      * this runner, so the hub can't be passed in, and the hub's methods are called on the object
      * at publish time (tests replace them).
      */
-    constructor({ database, repositories, store, accessPolicy, adminEmails, getHub, logger }) {
+    constructor({ database, repositories, readRoom, accessPolicy, adminEmails, getHub, logger }) {
         this.database = database;
         this.repositories = repositories;
-        this.store = store;
+        this.readRoom = readRoom;
         this.accessPolicy = accessPolicy;
         this.adminEmails = adminEmails;
         this.getHub = getHub;
@@ -76,7 +76,7 @@ export class RoomActionRunner {
     #createUnitOfWork(user) {
         return new RoomUnitOfWork({
             repositories: this.repositories,
-            store: this.store,
+            readRoom: this.readRoom,
             user,
             isAdmin: this.adminEmails.has(user.email),
         });

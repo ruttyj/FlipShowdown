@@ -9,7 +9,6 @@ import { StoreError } from '../../domain/errors.js';
  * to the final handler.
  */
 // Express recognises error handlers by their four parameters.
-// eslint-disable-next-line no-unused-vars
 export function handleStoreError(error, req, res, next) {
     if (!(error instanceof StoreError)) {
         next(error);
@@ -24,7 +23,6 @@ export function handleStoreError(error, req, res, next) {
  */
 export function createErrorHandler(logger) {
     // Express recognises error handlers by their four parameters.
-    // eslint-disable-next-line no-unused-vars
     return function handleError(error, req, res, next) {
         if (error.type === 'entity.parse.failed') {
             res.status(400).json({ message: 'Invalid JSON body' });

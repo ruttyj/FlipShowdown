@@ -34,6 +34,7 @@ export class RoomUnitOfWork {
     #childRepositories;
     #rooms;
     #players;
+    #readRoom;
 
     // The room's host_email before the action, or null for a room the action creates.
     #initialHostEmail = null;
@@ -47,13 +48,11 @@ export class RoomUnitOfWork {
 
     /**
      * `repositories` is the store's repositories (rooms, players, roundScores and chatMessages
-     * are used). `user` is the caller's users row, or SYSTEM_USER for a system action, and
-     * `isAdmin` whether that caller is an admin. `store` is the store facade, kept as `this.store`
-     * because loadRoom reads through it (see there) and the test-facing adapters in gameActions/
-     * build their services on `tx.store.repositories`. Services must not use it.
+     * are used). `readRoom(roomId)` returns the GameRoom record or null, for loadRoom (see there).
+     * `user` is the caller's users row, or SYSTEM_USER for a system action, and `isAdmin` whether
+     * that caller is an admin.
      */
-    constructor({ repositories, store, user, isAdmin }) {
-        this.store = store;
+    constructor({ repositories, readRoom, user, isAdmin }) {
         this.user = user;
         this.isAdmin = isAdmin;
         // Services read `room` but change it only through the methods below. The room acted on: set by loadRoom or insertRoom, and kept current by every room write.
@@ -61,6 +60,7 @@ export class RoomUnitOfWork {
         // Runner only (services must not touch it). What to publish after commit, in order: { entity, type, record }, one per record.
         this.events = [];
 
+        this.#readRoom = readRoom;
         this.#rooms = repositories.rooms;
         this.#players = repositories.players;
         this.#childRepositories = new Map([
@@ -242,10 +242,10 @@ export class RoomUnitOfWork {
 
     /** Makes the room with this id the action's room, or throws a 404 `room_not_found`. */
     loadRoom(roomId) {
-        // Read through the store facade rather than RoomRepository: staleRooms.test makes one
-        // room fail to load by replacing store.getRecord. Move to this.#rooms.get once that test
-        // stops patching the facade.
-        const room = this.store.getRecord(ROOM, roomId);
+        // Through readRoom rather than RoomRepository: the server's readRoom calls the store
+        // facade's getRecord, which staleRooms.test replaces to make one room fail to load (see
+        // buildRoomActionRunner). Move to this.#rooms.get once that test stops patching the facade.
+        const room = this.#readRoom(roomId);
         if (!room) {
             throw new ActionError(404, 'room_not_found', 'Room not found');
         }
