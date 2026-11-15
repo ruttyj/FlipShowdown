@@ -35,7 +35,7 @@ export function listPlayers(tx) {
 
 const storesByWork = new WeakMap();
 
-/** The store `tx` writes to. Throws unless `tx` is a unit of work runRoomAction is running. */
+/** The store `tx` writes to. Throws unless runRoomAction created `tx` (the entry outlives the commit). */
 export function storeOfWork(tx) {
     const store = storesByWork.get(tx);
     if (!store) {

@@ -274,17 +274,17 @@ code changes on every run.
   through `getHub()` and `EntityService` holds the hub object. Moving one of these call sites to a
   repository, or caching a hub method, keeps its test green but makes it check nothing.
 - Test-facing adapters and re-exports keep the API that tests import by path. Production code
-  doesn't use them; build new tests on the classes when you can:
+  doesn't use them (except `openStore`, below); build new tests on the classes when you can:
   - `gameActions/`: the old game actions (`ACTIONS`), `roomTx` (`runRoomAction`,
     `createRoomActionRunner`, the unit-of-work functions), `rooms`, `rounds` and `voteTopics`. Lint
     bans production imports of it. `ACTIONS[name].run(tx)` and `createRoom(tx)` only work on a
-    `tx` that `runRoomAction` is running, since that is how they find the store;
+    `tx` that `runRoomAction` created, since that is how they find the store;
   - `realtime/hub.js` (`createRealtimeHub`, over a store), `database/eventLog.js`
     (`createEventLog`), `managers/roomStats.js` (`buildRoomStats`) and
     `managers/LauncherReporter.js` (`createLauncherReporter`);
   - `services/ai/gemini.js` (`createGeminiClient`) and `services/ai/aiModels.js`
     (`createModelCatalog`); `createAuthenticator` is not one, as `AuthProvider` uses it too;
-  - `database/db.js` (`openStore`, `openDatabase`; lint lets only `providers/` import it);
+  - `database/db.js` (`openStore`, `openDatabase`): also how `DatabaseProvider` opens the store, the one production use; lint lets only `providers/` import it;
   - re-exports: `normaliseEmail` from `services/auth.js` (`email.test.js`), `StoreError` from
     `database/entityTables.js` (`store.test.js`) and the entity names from `gameActions/roomTx.js`
     (`invariantDriver.js`).

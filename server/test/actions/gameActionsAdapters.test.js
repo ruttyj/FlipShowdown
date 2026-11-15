@@ -124,7 +124,7 @@ describe('gameActions adapters', () => {
         });
     });
 
-    test('the action objects and createRoom refuse a unit of work runRoomAction is not running', () => {
+    test('the action objects and createRoom refuse a unit of work runRoomAction did not create', () => {
         const work = createUnitOfWork(store, HOST);
         work.loadRoom(seeded.room.id);
 
